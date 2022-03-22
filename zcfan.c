@@ -1,6 +1,5 @@
 #include <errno.h>
 #include <glob.h>
-#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -52,10 +51,10 @@ static int glob_err_handler(const char *epath, int eerrno) {
     return 0;
 }
 
-static int64_t read_temp_file(const char *filename) {
+static int read_temp_file(const char *filename) {
     FILE *f;
     int ret;
-    int64_t val;
+    int val;
 
     f = fopen(filename, "re");
     if (!f) {
@@ -63,7 +62,7 @@ static int64_t read_temp_file(const char *filename) {
         return errno;
     }
 
-    ret = fscanf(f, "%" PRIi64, &val);
+    ret = fscanf(f, "%d", &val);
     if (!ret) {
         fprintf(stderr, "%s: fscanf: %s\n", filename, strerror(errno));
         return errno;
@@ -72,8 +71,7 @@ static int64_t read_temp_file(const char *filename) {
     fclose(f);
 
     if (val <= 0 || val > TEMP_MAX_MCEL) {
-        fprintf(stderr, "%s: invalid temperature: %" PRIi64 "\n", filename,
-                val);
+        fprintf(stderr, "%s: invalid temperature: %d\n", filename, val);
         return -ERANGE;
     }
 
@@ -81,7 +79,7 @@ static int64_t read_temp_file(const char *filename) {
 }
 
 static int get_max_temp(void) {
-    int64_t max_temp = 0;
+    int max_temp = 0;
     int ret;
     size_t i;
 
@@ -111,7 +109,7 @@ static int get_max_temp(void) {
 
     for (i = 0; i < temp_files.gl_pathc; i++) {
         const char *tf = temp_files.gl_pathv[i];
-        int64_t temp = read_temp_file(tf);
+        int temp = read_temp_file(tf);
 
         if (temp > max_temp) {
             max_temp = temp;
