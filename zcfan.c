@@ -20,6 +20,7 @@ enum FanLevel {
     FAN_LOW = 2,
     FAN_MED = 4,
     FAN_MAX = 7,
+    FAN_UNKNOWN,
 };
 
 struct Rule {
@@ -34,6 +35,8 @@ static const struct Rule rules[] = {
     {65, FAN_LOW},
     {0, FAN_OFF},
 };
+
+static enum FanLevel current_fan_level = FAN_UNKNOWN;
 
 static int glob_err_handler(const char *epath, int eerrno) {
     fprintf(stderr, "glob: %s: %s\n", epath, strerror(eerrno));
@@ -114,7 +117,7 @@ static int get_max_temp(void) {
     return MILLIC_TO_C(max_temp);
 }
 
-static int _set_fan_level(int level) {
+static int _set_fan_level(enum FanLevel level) {
     FILE *f;
     int ret;
 
@@ -132,6 +135,8 @@ static int _set_fan_level(int level) {
 
     fclose(f);
 
+    current_fan_level = level;
+
     printf("Set level %d\n", level);
 
     return 0;
@@ -146,7 +151,9 @@ static void set_fan_level(void) {
 
         /* TODO: hysteresis */
         if (rule.threshold < max_temp) {
-            _set_fan_level(rule.fan_level);
+            if (current_fan_level != rule.fan_level) {
+                _set_fan_level(rule.fan_level);
+            }
             return;
         }
     }
