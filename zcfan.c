@@ -128,12 +128,7 @@ static int _set_fan_level(const char *level) {
         return errno;
     }
 
-    ret = fprintf(f, "level %s", level);
-    if (!ret) {
-        fprintf(stderr, "%s: fprintf: %s\n", FAN_CONTROL_FILE, strerror(errno));
-        return errno;
-    }
-
+    assert(fprintf(f, "level %s", level));
     fclose(f);
 
     printf("Set level %s\n", level);
