@@ -36,7 +36,13 @@ static const struct Rule rules[] = {
     {0, FAN_OFF},
 };
 
-static enum FanLevel current_fan_level = FAN_UNKNOWN;
+/*
+ * How many degrees lower than the fan level activation speed you must be
+ * before you're allowed to switch to a lower fan speed
+ */
+static unsigned int fan_hysteresis = 10;
+
+static const struct Rule *current_rule = NULL;
 
 static glob_t temp_files;
 static int temp_files_populated = 0;
@@ -138,24 +144,29 @@ static int _set_fan_level(enum FanLevel level) {
 
     fclose(f);
 
-    current_fan_level = level;
-
     printf("Set level %d\n", level);
 
     return 0;
 }
 
 static void set_fan_level(void) {
-    int max_temp = get_max_temp();
+    unsigned int max_temp = (unsigned int)get_max_temp();
+    unsigned int penalty = 0;
     size_t i;
 
-    for (i = 0; i < sizeof(rules); i++) {
-        struct Rule rule = rules[i];
+    for (i = 0; i < (sizeof(rules) / sizeof(rules[0])); i++) {
+        const struct Rule *rule = rules + i;
 
-        /* TODO: hysteresis */
-        if (rule.threshold < max_temp) {
-            if (current_fan_level != rule.fan_level) {
-                _set_fan_level(rule.fan_level);
+        if (rule == current_rule) {
+            /* Penalty for all further rules for hysteresis */
+            penalty = fan_hysteresis;
+        }
+
+        if (rule->threshold < penalty ||
+            (rule->threshold - penalty) < max_temp) {
+            if (rule != current_rule) {
+                current_rule = rule;
+                _set_fan_level(rule->fan_level);
             }
             return;
         }
