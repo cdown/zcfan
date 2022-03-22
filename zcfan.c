@@ -118,7 +118,7 @@ static int get_max_temp(void) {
     return MILLIC_TO_C(max_temp);
 }
 
-static int _set_fan_level(enum FanLevel level) {
+static int _set_fan_level(const char *level) {
     FILE *f;
     int ret;
 
@@ -128,7 +128,7 @@ static int _set_fan_level(enum FanLevel level) {
         return errno;
     }
 
-    ret = fprintf(f, "level %d", level);
+    ret = fprintf(f, "level %s", level);
     if (!ret) {
         fprintf(stderr, "%s: fprintf: %s\n", FAN_CONTROL_FILE, strerror(errno));
         return errno;
@@ -136,10 +136,12 @@ static int _set_fan_level(enum FanLevel level) {
 
     fclose(f);
 
-    printf("Set level %d\n", level);
+    printf("Set level %s\n", level);
 
     return 0;
 }
+
+#define LEVEL_MAX sizeof("disengaged")
 
 static void set_fan_level(void) {
     unsigned int max_temp = (unsigned int)get_max_temp();
@@ -148,6 +150,7 @@ static void set_fan_level(void) {
 
     for (i = 0; i < (sizeof(rules) / sizeof(rules[0])); i++) {
         const struct Rule *rule = rules + i;
+        char level[LEVEL_MAX];
 
         if (rule == current_rule) {
             /* Penalty for all further rules for hysteresis */
@@ -158,7 +161,9 @@ static void set_fan_level(void) {
             (rule->threshold - penalty) < max_temp) {
             if (rule != current_rule) {
                 current_rule = rule;
-                _set_fan_level(rule->fan_level);
+                assert((size_t)snprintf(level, sizeof(level), "%d",
+                                        rule->fan_level) < sizeof(level));
+                _set_fan_level(level);
             }
             return;
         }
@@ -167,17 +172,17 @@ static void set_fan_level(void) {
     fprintf(stderr, "No rule matched?\n");
 }
 
-static void stop(int sig) {
-    run = 0;
-}
+static void stop(int sig) { run = 0; }
 
 int main(int argc, char *argv[]) {
     const struct sigaction sa_exit = {
         .sa_handler = stop,
     };
+    sigset_t mask;
 
-    (void) sigaction(SIGTERM, &sa_exit, NULL);
-    (void) sigaction(SIGINT, &sa_exit, NULL);
+    sigfillset(&mask);
+    (void)sigaction(SIGTERM, &sa_exit, NULL);
+    (void)sigaction(SIGINT, &sa_exit, NULL);
 
     prog_name = argv[0];
 
@@ -186,7 +191,8 @@ int main(int argc, char *argv[]) {
         sleep(1);
     }
 
-    /* TODO: reset to auto on exit */
+    (void)sigprocmask(SIG_SETMASK, &mask, NULL);
+    _set_fan_level("auto");
     if (temp_files_populated) {
         globfree(&temp_files);
     }
