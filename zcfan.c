@@ -117,7 +117,7 @@ static int get_max_temp(void) {
     return MILLIC_TO_C(max_temp);
 }
 
-static int _set_fan_level(const char *level) {
+static int write_fan_level(const char *level) {
     FILE *f;
 
     f = fopen(FAN_CONTROL_FILE, "we");
@@ -156,7 +156,7 @@ static void set_fan_level(void) {
                 current_rule = rule;
                 assert((size_t)snprintf(level, sizeof(level), "%d",
                                         rule->fan_level) < sizeof(level));
-                _set_fan_level(level);
+                write_fan_level(level);
             }
             return;
         }
@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
     }
 
     (void)sigprocmask(SIG_SETMASK, &mask, NULL);
-    _set_fan_level("auto");
+    write_fan_level("auto");
     if (temp_files_populated) {
         globfree(&temp_files);
     }
