@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <errno.h>
 #include <glob.h>
 #include <stdio.h>
@@ -62,12 +63,7 @@ static int read_temp_file(const char *filename) {
         return errno;
     }
 
-    ret = fscanf(f, "%d", &val);
-    if (!ret) {
-        fprintf(stderr, "%s: fscanf: %s\n", filename, strerror(errno));
-        return errno;
-    }
-
+    assert(fscanf(f, "%d", &val));
     fclose(f);
 
     if (val <= 0 || val > TEMP_MAX_MCEL) {
