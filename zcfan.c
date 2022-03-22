@@ -131,7 +131,7 @@ static int _set_fan_level(const char *level) {
     assert(fprintf(f, "level %s", level));
     fclose(f);
 
-    printf("Set level %s\n", level);
+    printf("Set fan level %s\n", level);
 
     return 0;
 }
