@@ -32,7 +32,7 @@ struct Rule {
 static const struct Rule rules[] = {
     {80, FAN_MAX},
     {75, FAN_MED},
-    {65, FAN_LOW},
+    {70, FAN_LOW},
     {0, FAN_OFF},
 };
 
