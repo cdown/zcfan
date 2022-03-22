@@ -3,13 +3,37 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 /* All temp values from sysfs are are in milldegree celsius */
 #define C_TO_MILLIC(n) (n * 1000)
 #define MILLIC_TO_C(n) (n / 1000)
 
 #define TEMP_FILES_GLOB "/sys/class/thermal/thermal_zone*/temp"
+#define FAN_CONTROL_FILE "/proc/acpi/ibm/fan"
 #define TEMP_MAX_MCEL C_TO_MILLIC(150)
+
+static const char *prog_name = NULL;
+
+enum FanLevel {
+    FAN_OFF = 0,
+    FAN_LOW = 2,
+    FAN_MED = 4,
+    FAN_MAX = 7,
+};
+
+struct Rule {
+    unsigned int threshold;
+    enum FanLevel fan_level;
+};
+
+/* Must be ordered from highest to lowest temp */
+static const struct Rule rules[] = {
+    {80, FAN_MAX},
+    {75, FAN_MED},
+    {65, FAN_LOW},
+    {0, FAN_OFF},
+};
 
 static int glob_err_handler(const char *epath, int eerrno) {
     fprintf(stderr, "glob: %s: %s\n", epath, strerror(eerrno));
@@ -23,15 +47,17 @@ static int64_t read_temp_file(const char *filename) {
 
     f = fopen(filename, "re");
     if (!f) {
-        fprintf(stderr, "%s: fopen: %s", filename, strerror(errno));
+        fprintf(stderr, "%s: fopen: %s\n", filename, strerror(errno));
         return errno;
     }
 
     ret = fscanf(f, "%" PRIi64, &val);
     if (!ret) {
-        fprintf(stderr, "%s: fscanf: %s", filename, strerror(errno));
+        fprintf(stderr, "%s: fscanf: %s\n", filename, strerror(errno));
         return errno;
     }
+
+    fclose(f);
 
     if (val <= 0 || val > TEMP_MAX_MCEL) {
         fprintf(stderr, "%s: invalid temperature: %" PRIi64 "\n", filename,
@@ -42,7 +68,7 @@ static int64_t read_temp_file(const char *filename) {
     return val;
 }
 
-static int get_max_temp(const char *prog_name) {
+static int get_max_temp(void) {
     int64_t max_temp = 0;
     glob_t results;
     int ret;
@@ -85,9 +111,55 @@ static int get_max_temp(const char *prog_name) {
         return -ENODATA;
     }
 
-    printf("Max temp: %" PRIi64 "C\n", MILLIC_TO_C(max_temp));
+    return MILLIC_TO_C(max_temp);
+}
+
+static int _set_fan_level(int level) {
+    FILE *f;
+    int ret;
+
+    f = fopen(FAN_CONTROL_FILE, "we");
+    if (!f) {
+        fprintf(stderr, "%s: fopen: %s\n", FAN_CONTROL_FILE, strerror(errno));
+        return errno;
+    }
+
+    ret = fprintf(f, "level %d", level);
+    if (!ret) {
+        fprintf(stderr, "%s: fprintf: %s\n", FAN_CONTROL_FILE, strerror(errno));
+        return errno;
+    }
+
+    fclose(f);
+
+    printf("Set level %d\n", level);
 
     return 0;
 }
 
-int main(int argc, char *argv[]) { return !!get_max_temp(argv[0]); }
+static void set_fan_level(void) {
+    int max_temp = get_max_temp();
+    size_t i;
+
+    for (i = 0; i < sizeof(rules); i++) {
+        struct Rule rule = rules[i];
+
+        /* TODO: hysteresis */
+        if (rule.threshold < max_temp) {
+            _set_fan_level(rule.fan_level);
+            return;
+        }
+    }
+
+    fprintf(stderr, "No rule matched?\n");
+}
+
+int main(int argc, char *argv[]) {
+    prog_name = argv[0];
+    while (1) {
+        set_fan_level();
+        sleep(1);
+    }
+
+    /* TODO: reset to auto on exit */
+}
