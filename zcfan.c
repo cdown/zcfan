@@ -57,7 +57,6 @@ static int glob_err_handler(const char *epath, int eerrno) {
 
 static int read_temp_file(const char *filename) {
     FILE *f;
-    int ret;
     int val;
 
     f = fopen(filename, "re");
@@ -120,7 +119,6 @@ static int get_max_temp(void) {
 
 static int _set_fan_level(const char *level) {
     FILE *f;
-    int ret;
 
     f = fopen(FAN_CONTROL_FILE, "we");
     if (!f) {
