@@ -103,8 +103,9 @@ static int get_max_temp(void) {
                     break;
             }
             fprintf(stderr, "%s: %s\n", prog_name, err);
+        } else {
+            temp_files_populated = 1;
         }
-        temp_files_populated = 1;
     }
 
     for (i = 0; i < temp_files.gl_pathc; i++) {
