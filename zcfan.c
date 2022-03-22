@@ -1,13 +1,41 @@
 #include <errno.h>
 #include <glob.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
 #define TEMP_FILES_GLOB "/sys/class/thermal/thermal_zone*/temp"
+#define TEMP_MAX_MCEL 150000
 
 static int glob_err_handler(const char *epath, int eerrno) {
     fprintf(stderr, "glob: %s: %s\n", epath, strerror(eerrno));
     return 0;
+}
+
+static int64_t read_temp_file(const char *filename) {
+    FILE *f;
+    int ret;
+    int64_t val;
+
+    f = fopen(filename, "re");
+    if (!f) {
+        fprintf(stderr, "%s: fopen: %s", filename, strerror(errno));
+        return errno;
+    }
+
+    ret = fscanf(f, "%" PRIi64, &val);
+    if (!ret) {
+        fprintf(stderr, "%s: fscanf: %s", filename, strerror(errno));
+        return errno;
+    }
+
+    if (val <= 0 || val > TEMP_MAX_MCEL) {
+        fprintf(stderr, "%s: invalid temperature: %" PRIi64 "\n", filename,
+                val);
+        return -ERANGE;
+    }
+
+    return val;
 }
 
 static int get_max_temp(const char *prog_name) {
@@ -37,7 +65,8 @@ static int get_max_temp(const char *prog_name) {
     }
 
     for (i = 0; i < results.gl_pathc; i++) {
-        printf("%s\n", results.gl_pathv[i]);
+        const char *tf = results.gl_pathv[i];
+        printf("%s: %" PRIi64 "\n", tf, read_temp_file(tf));
     }
 
     globfree(&results);
