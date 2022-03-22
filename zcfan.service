@@ -1,0 +1,20 @@
+[Unit]
+Description=Zero-configuration fan control for ThinkPad
+
+[Service]
+ExecStart=/usr/bin/zcfan
+Restart=always
+RestartSec=500ms
+
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=
+RestrictRealtime=yes
+
+# We don't need to do any substantial clean up, so if something hangs it's
+# going to stay that way. Just forcefully kill and get it over with.
+TimeoutStopSec=2
+
+[Install]
+WantedBy=default.target
