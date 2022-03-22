@@ -39,6 +39,7 @@ static int64_t read_temp_file(const char *filename) {
 }
 
 static int get_max_temp(const char *prog_name) {
+    int64_t max_temp = 0;
     glob_t results;
     int ret;
     size_t i;
@@ -66,11 +67,23 @@ static int get_max_temp(const char *prog_name) {
 
     for (i = 0; i < results.gl_pathc; i++) {
         const char *tf = results.gl_pathv[i];
-        printf("%s: %" PRIi64 "\n", tf, read_temp_file(tf));
+        int64_t temp = read_temp_file(tf);
+
+        if (temp > max_temp) {
+            max_temp = temp;
+        }
     }
 
     globfree(&results);
+
+    if (max_temp == 0) {
+        fprintf(stderr, "Couldn't find any valid temperature\n");
+        return -ENODATA;
+    }
+
+    printf("Max temp: %" PRIi64 "\n", max_temp);
+
     return 0;
 }
 
-int main(int argc, char *argv[]) { get_max_temp(argv[0]); }
+int main(int argc, char *argv[]) { return !!get_max_temp(argv[0]); }
