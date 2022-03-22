@@ -38,6 +38,9 @@ static const struct Rule rules[] = {
 
 static enum FanLevel current_fan_level = FAN_UNKNOWN;
 
+static glob_t temp_files;
+static int temp_files_populated = 0;
+
 static int glob_err_handler(const char *epath, int eerrno) {
     fprintf(stderr, "glob: %s: %s\n", epath, strerror(eerrno));
     return 0;
@@ -73,41 +76,41 @@ static int64_t read_temp_file(const char *filename) {
 
 static int get_max_temp(void) {
     int64_t max_temp = 0;
-    glob_t results;
     int ret;
     size_t i;
 
-    ret = glob(TEMP_FILES_GLOB, 0, glob_err_handler, &results);
-    if (ret != 0) {
-        const char *err = "glob: Unknown error";
+    if (!temp_files_populated) {
+        ret = glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files);
+        if (ret != 0) {
+            const char *err = "glob: Unknown error";
 
-        switch (ret) {
-            case GLOB_NOMATCH:
-                err = "Could not find temperature file";
-                break;
-            case GLOB_NOSPACE:
-                err = "glob: Out of memory";
-                break;
-            default:
-                /*
-                 * GLOB_ABORTED can't happen because we don't use GLOB_ERR and
-                 * glob_err_handler always returns success
-                 */
-                break;
+            switch (ret) {
+                case GLOB_NOMATCH:
+                    err = "Could not find temperature file";
+                    break;
+                case GLOB_NOSPACE:
+                    err = "glob: Out of memory";
+                    break;
+                default:
+                    /*
+                     * GLOB_ABORTED can't happen because we don't use GLOB_ERR
+                     * and glob_err_handler always returns success
+                     */
+                    break;
+            }
+            fprintf(stderr, "%s: %s\n", prog_name, err);
         }
-        fprintf(stderr, "%s: %s\n", prog_name, err);
+        temp_files_populated = 1;
     }
 
-    for (i = 0; i < results.gl_pathc; i++) {
-        const char *tf = results.gl_pathv[i];
+    for (i = 0; i < temp_files.gl_pathc; i++) {
+        const char *tf = temp_files.gl_pathv[i];
         int64_t temp = read_temp_file(tf);
 
         if (temp > max_temp) {
             max_temp = temp;
         }
     }
-
-    globfree(&results);
 
     if (max_temp == 0) {
         fprintf(stderr, "Couldn't find any valid temperature\n");
@@ -169,4 +172,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* TODO: reset to auto on exit */
+    if (temp_files_populated) {
+        globfree(&temp_files);
+    }
 }
