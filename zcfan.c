@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <glob.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -47,6 +48,8 @@ static const struct Rule *current_rule = NULL;
 static glob_t temp_files;
 static int temp_files_populated = 0;
 
+static volatile sig_atomic_t run = 1;
+
 static int glob_err_handler(const char *epath, int eerrno) {
     fprintf(stderr, "glob: %s: %s\n", epath, strerror(eerrno));
     return 0;
@@ -90,12 +93,6 @@ static int get_max_temp(void) {
                     break;
                 case GLOB_NOSPACE:
                     err = "glob: Out of memory";
-                    break;
-                default:
-                    /*
-                     * GLOB_ABORTED can't happen because we don't use GLOB_ERR
-                     * and glob_err_handler always returns success
-                     */
                     break;
             }
             fprintf(stderr, "%s: %s\n", prog_name, err);
@@ -170,9 +167,21 @@ static void set_fan_level(void) {
     fprintf(stderr, "No rule matched?\n");
 }
 
+static void stop(int sig) {
+    run = 0;
+}
+
 int main(int argc, char *argv[]) {
+    const struct sigaction sa_exit = {
+        .sa_handler = stop,
+    };
+
+    (void) sigaction(SIGTERM, &sa_exit, NULL);
+    (void) sigaction(SIGINT, &sa_exit, NULL);
+
     prog_name = argv[0];
-    while (1) {
+
+    while (run) {
         set_fan_level();
         sleep(1);
     }
