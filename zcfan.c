@@ -4,8 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 
+/* All temp values from sysfs are are in milldegree celsius */
+#define C_TO_MILLIC(n) (n * 1000)
+#define MILLIC_TO_C(n) (n / 1000)
+
 #define TEMP_FILES_GLOB "/sys/class/thermal/thermal_zone*/temp"
-#define TEMP_MAX_MCEL 150000
+#define TEMP_MAX_MCEL C_TO_MILLIC(150)
 
 static int glob_err_handler(const char *epath, int eerrno) {
     fprintf(stderr, "glob: %s: %s\n", epath, strerror(eerrno));
@@ -81,7 +85,7 @@ static int get_max_temp(const char *prog_name) {
         return -ENODATA;
     }
 
-    printf("Max temp: %" PRIi64 "\n", max_temp);
+    printf("Max temp: %" PRIi64 "C\n", MILLIC_TO_C(max_temp));
 
     return 0;
 }
