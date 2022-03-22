@@ -21,7 +21,6 @@ enum FanLevel {
     FAN_LOW = 2,
     FAN_MED = 4,
     FAN_MAX = 7,
-    FAN_UNKNOWN,
 };
 
 struct Rule {
