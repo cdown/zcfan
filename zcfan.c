@@ -44,6 +44,7 @@ static unsigned int fan_hysteresis = 10;
 
 static const struct Rule *current_rule = NULL;
 
+static char output_buf[512];
 static glob_t temp_files;
 static int temp_files_populated = 0;
 
@@ -175,6 +176,7 @@ int main(int argc, char *argv[]) {
     sigfillset(&mask);
     (void)sigaction(SIGTERM, &sa_exit, NULL);
     (void)sigaction(SIGINT, &sa_exit, NULL);
+    (void)setvbuf(stdout, output_buf, _IOLBF, sizeof(output_buf));
 
     prog_name = argv[0];
 
