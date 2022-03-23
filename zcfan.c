@@ -79,11 +79,10 @@ static int read_temp_file(const char *filename) {
 
 static int get_max_temp(void) {
     int max_temp = 0;
-    int ret;
     size_t i;
 
     if (!temp_files_populated) {
-        ret = glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files);
+        int ret = glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files);
         if (ret) {
             const char *err = "glob: Unknown error";
             switch (ret) {
