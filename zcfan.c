@@ -44,7 +44,8 @@ static const struct Rule rules[] = {
 };
 
 static const char *prog_name = NULL;
-static unsigned int fan_hysteresis = 10;
+static const unsigned int fan_hysteresis = 10;
+static const unsigned int tick_hysteresis = 5;
 static char output_buf[512];
 static const struct Rule *current_rule = NULL;
 static glob_t temp_files;
@@ -128,12 +129,15 @@ static void write_fan_level(const char *level) {
     printf("Set fan level %s\n", level);
 }
 
-#define LEVEL_MAX sizeof("disengaged")
-
 static void set_fan_level(void) {
     int max_temp = get_max_temp();
-    unsigned int penalty = 0;
+    unsigned int temp_penalty = 0;
+    static unsigned int tick_penalty = tick_hysteresis;
     size_t i;
+
+    if (tick_penalty > 0) {
+        tick_penalty--;
+    }
 
     if (max_temp == TEMP_INVALID) {
         write_fan_level("full-speed");
@@ -142,16 +146,20 @@ static void set_fan_level(void) {
 
     for (i = 0; i < (sizeof(rules) / sizeof(rules[0])); i++) {
         const struct Rule *rule = rules + i;
-        char level[LEVEL_MAX];
+        char level[sizeof("disengaged")];
 
         if (rule == current_rule) {
-            penalty = fan_hysteresis;
+            if (tick_penalty) {
+                return; /* Must wait longer until able to move down levels */
+            }
+            temp_penalty = fan_hysteresis;
         }
 
-        if (rule->threshold < penalty ||
-            (rule->threshold - penalty) < (unsigned int)max_temp) {
+        if (rule->threshold < temp_penalty ||
+            (rule->threshold - temp_penalty) < (unsigned int)max_temp) {
             if (rule != current_rule) {
                 current_rule = rule;
+                tick_penalty = tick_hysteresis;
                 expect((size_t)snprintf(level, sizeof(level), "%d",
                                         rule->fan_level) < sizeof(level));
                 write_fan_level(level);
