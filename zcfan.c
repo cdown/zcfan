@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <glob.h>
+#include <limits.h>
 #include <signal.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,6 +14,7 @@
 #define TEMP_FILES_GLOB "/sys/class/thermal/thermal_zone*/temp"
 #define FAN_CONTROL_FILE "/proc/acpi/ibm/fan"
 #define TEMP_MAX_MCEL C_TO_MILLIC(150)
+#define TEMP_INVALID INT_MIN
 
 static const char *prog_name = NULL;
 
@@ -85,7 +87,6 @@ static int get_max_temp(void) {
         ret = glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files);
         if (ret != 0) {
             const char *err = "glob: Unknown error";
-
             switch (ret) {
                 case GLOB_NOMATCH:
                     err = "Could not find temperature file";
@@ -95,6 +96,7 @@ static int get_max_temp(void) {
                     break;
             }
             fprintf(stderr, "%s: %s\n", prog_name, err);
+            return TEMP_INVALID;
         } else {
             temp_files_populated = 1;
         }
@@ -111,7 +113,7 @@ static int get_max_temp(void) {
 
     if (max_temp == 0) {
         fprintf(stderr, "Couldn't find any valid temperature\n");
-        return -ENODATA;
+        return TEMP_INVALID;
     }
 
     return MILLIC_TO_C(max_temp);
@@ -137,9 +139,14 @@ static int write_fan_level(const char *level) {
 #define LEVEL_MAX sizeof("disengaged")
 
 static void set_fan_level(void) {
-    unsigned int max_temp = (unsigned int)get_max_temp();
+    int max_temp = get_max_temp();
     unsigned int penalty = 0;
     size_t i;
+
+    if (max_temp == TEMP_INVALID) {
+        write_fan_level("full-speed");
+        return;
+    }
 
     for (i = 0; i < (sizeof(rules) / sizeof(rules[0])); i++) {
         const struct Rule *rule = rules + i;
@@ -151,7 +158,7 @@ static void set_fan_level(void) {
         }
 
         if (rule->threshold < penalty ||
-            (rule->threshold - penalty) < max_temp) {
+            (rule->threshold - penalty) < (unsigned int)max_temp) {
             if (rule != current_rule) {
                 current_rule = rule;
                 assert((size_t)snprintf(level, sizeof(level), "%d",
