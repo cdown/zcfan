@@ -37,8 +37,8 @@ struct Rule {
 
 /* Must be highest to lowest temp */
 static const struct Rule rules[] = {
-    {80, FAN_MAX},
-    {75, FAN_MED},
+    {90, FAN_MAX},
+    {80, FAN_MED},
     {70, FAN_LOW},
     {0, FAN_OFF},
 };
