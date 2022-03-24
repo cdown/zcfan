@@ -7,11 +7,9 @@
 #include <string.h>
 #include <unistd.h>
 
-#define C_TO_MILLIC(n) (n * 1000)
 #define MILLIC_TO_C(n) (n / 1000)
 #define TEMP_FILES_GLOB "/sys/class/thermal/thermal_zone*/temp"
 #define FAN_CONTROL_FILE "/proc/acpi/ibm/fan"
-#define TEMP_MAX_MCEL C_TO_MILLIC(150)
 #define TEMP_INVALID INT_MIN
 
 #define expect(x)                                                              \
@@ -31,7 +29,7 @@ enum FanLevel {
 };
 
 struct Rule {
-    unsigned int threshold;
+    int threshold;
     enum FanLevel fan_level;
 };
 
@@ -68,16 +66,11 @@ static int read_temp_file(const char *filename) {
     expect(fscanf(f, "%d", &val));
     fclose(f);
 
-    if (val <= 0 || val > TEMP_MAX_MCEL) {
-        fprintf(stderr, "%s: invalid temperature: %d\n", filename, val);
-        return -ERANGE;
-    }
-
     return val;
 }
 
 static int get_max_temp(void) {
-    int max_temp = 0;
+    int max_temp = TEMP_INVALID;
     int ret = glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files);
     size_t i;
 
@@ -104,7 +97,7 @@ static int get_max_temp(void) {
 
     globfree(&temp_files);
 
-    if (max_temp == 0) {
+    if (max_temp == TEMP_INVALID) {
         fprintf(stderr, "Couldn't find any valid temperature\n");
         return TEMP_INVALID;
     }
@@ -126,8 +119,7 @@ static void write_fan_level(const char *level) {
 }
 
 static void set_fan_level(void) {
-    int max_temp = get_max_temp();
-    unsigned int temp_penalty = 0;
+    int max_temp = get_max_temp(), temp_penalty = 0;
     static unsigned int tick_penalty = tick_hysteresis;
     size_t i;
 
@@ -152,7 +144,7 @@ static void set_fan_level(void) {
         }
 
         if (rule->threshold < temp_penalty ||
-            (rule->threshold - temp_penalty) < (unsigned int)max_temp) {
+            (rule->threshold - temp_penalty) < max_temp) {
             if (rule != current_rule) {
                 current_rule = rule;
                 tick_penalty = tick_hysteresis;
