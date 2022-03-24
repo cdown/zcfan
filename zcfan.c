@@ -12,6 +12,7 @@
 #define FAN_CONTROL_FILE "/proc/acpi/ibm/fan"
 #define TEMP_INVALID INT_MIN
 
+#define max(x, y) ((x) > (y) ? (x) : (y))
 #define expect(x)                                                              \
     do {                                                                       \
         if (!(x)) {                                                            \
@@ -90,11 +91,8 @@ static int get_max_temp(void) {
 
     for (i = 0; i < temp_files.gl_pathc; i++) {
         int temp = read_temp_file(temp_files.gl_pathv[i]);
-        if (temp > max_temp) {
-            max_temp = temp;
-        }
+        max_temp = max(max_temp, temp);
     }
-
     globfree(&temp_files);
 
     if (max_temp == TEMP_INVALID) {
