@@ -76,16 +76,8 @@ static int get_max_temp(void) {
     size_t i;
 
     if (ret) {
-        const char *err = "glob: Unknown error";
-        switch (ret) {
-            case GLOB_NOMATCH:
-                err = "Could not find temperature file";
-                break;
-            case GLOB_NOSPACE:
-                err = "glob: Out of memory";
-                break;
-        }
-        fprintf(stderr, "%s: %s\n", prog_name, err);
+        expect(ret == GLOB_NOMATCH);
+        fprintf(stderr, "%s: Could not find temperature file\n", prog_name);
         return TEMP_INVALID;
     }
 
