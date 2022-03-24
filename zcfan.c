@@ -49,7 +49,6 @@ static const unsigned int tick_hysteresis = 5;
 static char output_buf[512];
 static const struct Rule *current_rule = NULL;
 static glob_t temp_files;
-static int temp_files_populated = 0;
 static volatile sig_atomic_t run = 1;
 
 static int glob_err_handler(const char *epath, int eerrno) {
@@ -79,25 +78,21 @@ static int read_temp_file(const char *filename) {
 
 static int get_max_temp(void) {
     int max_temp = 0;
+    int ret = glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files);
     size_t i;
 
-    if (!temp_files_populated) {
-        int ret = glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files);
-        if (ret) {
-            const char *err = "glob: Unknown error";
-            switch (ret) {
-                case GLOB_NOMATCH:
-                    err = "Could not find temperature file";
-                    break;
-                case GLOB_NOSPACE:
-                    err = "glob: Out of memory";
-                    break;
-            }
-            fprintf(stderr, "%s: %s\n", prog_name, err);
-            return TEMP_INVALID;
-        } else {
-            temp_files_populated = 1;
+    if (ret) {
+        const char *err = "glob: Unknown error";
+        switch (ret) {
+            case GLOB_NOMATCH:
+                err = "Could not find temperature file";
+                break;
+            case GLOB_NOSPACE:
+                err = "glob: Out of memory";
+                break;
         }
+        fprintf(stderr, "%s: %s\n", prog_name, err);
+        return TEMP_INVALID;
     }
 
     for (i = 0; i < temp_files.gl_pathc; i++) {
@@ -106,6 +101,8 @@ static int get_max_temp(void) {
             max_temp = temp;
         }
     }
+
+    globfree(&temp_files);
 
     if (max_temp == 0) {
         fprintf(stderr, "Couldn't find any valid temperature\n");
@@ -194,7 +191,4 @@ int main(int argc, char *argv[]) {
 
     expect(sigprocmask(SIG_SETMASK, &mask, NULL) == 0);
     write_fan_level("auto");
-    if (temp_files_populated) {
-        globfree(&temp_files);
-    }
 }
