@@ -187,7 +187,9 @@ int main(int argc, char *argv[]) {
 
     while (run) {
         set_fan_level();
-        sleep(1);
+        if (run) {
+            sleep(1);
+        }
     }
 
     expect(sigprocmask(SIG_SETMASK, &mask, NULL) == 0);
