@@ -173,9 +173,7 @@ int main(int argc, char *argv[]) {
     const struct sigaction sa_exit = {
         .sa_handler = stop,
     };
-    sigset_t mask;
 
-    sigfillset(&mask);
     expect(sigaction(SIGTERM, &sa_exit, NULL) >= 0);
     expect(sigaction(SIGINT, &sa_exit, NULL) >= 0);
     expect(setvbuf(stdout, output_buf, _IOLBF, sizeof(output_buf)) == 0);
@@ -189,6 +187,5 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    expect(sigprocmask(SIG_SETMASK, &mask, NULL) == 0);
     write_fan_level("auto");
 }
