@@ -118,7 +118,7 @@ static void write_fan_level(const char *level) {
 }
 
 static void set_fan_level(void) {
-    int max_temp = get_max_temp(), temp_penalty = 0;
+    int max_temp = get_max_temp(), temp_penalty = 0, ret;
     static unsigned int tick_penalty = tick_hysteresis;
     size_t i;
 
@@ -147,8 +147,8 @@ static void set_fan_level(void) {
             if (rule != current_rule) {
                 current_rule = rule;
                 tick_penalty = tick_hysteresis;
-                expect((size_t)snprintf(level, sizeof(level), "%d",
-                                        rule->fan_level) < sizeof(level));
+                ret = snprintf(level, sizeof(level), "%d", rule->fan_level);
+                expect(ret >= 0 && (size_t)ret < sizeof(level));
                 write_fan_level(level);
             }
             return;
