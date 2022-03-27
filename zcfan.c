@@ -155,8 +155,7 @@ static void set_fan_level(void) {
     do {                                                                       \
         int val;                                                               \
         if (fscanf(f, name " %d ", &val) == 1) {                               \
-            struct Rule *rule = rules + fl;                                    \
-            rule->threshold = val;                                             \
+            rules[fl].threshold = val;                                         \
         } else {                                                               \
             expect(fseek(f, pos, SEEK_SET) == 0);                              \
         }                                                                      \
