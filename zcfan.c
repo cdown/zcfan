@@ -22,31 +22,26 @@
         }                                                                      \
     } while (0)
 
-enum FanLevel {
-    FAN_OFF = 0,
-    FAN_LOW = 2,
-    FAN_MED = 4,
-    FAN_MAX = 7,
-};
-
-struct Rule {
-    int threshold;
-    enum FanLevel fan_level;
-};
-
 /* Must be highest to lowest temp */
-static struct Rule rules[] = {
-    {90, FAN_MAX},
-    {80, FAN_MED},
-    {70, FAN_LOW},
-    {0, FAN_OFF},
+enum FanLevel { FAN_MAX, FAN_MED, FAN_LOW, FAN_OFF };
+static int fan_levels[] = {
+    [FAN_MAX] = 7,
+    [FAN_MED] = 4,
+    [FAN_LOW] = 2,
+    [FAN_OFF] = 0,
+};
+static int thresholds[] = {
+    [FAN_MAX] = 90,
+    [FAN_MED] = 80,
+    [FAN_LOW] = 70,
+    [FAN_OFF] = 0,
 };
 
 static const char *prog_name = NULL;
 static const unsigned int fan_hysteresis = 10;
 static const unsigned int tick_hysteresis = 5;
 static char output_buf[512];
-static const struct Rule *current_rule = NULL;
+static int current_threshold = TEMP_INVALID;
 static glob_t temp_files;
 static volatile sig_atomic_t run = 1;
 
@@ -130,23 +125,22 @@ static void set_fan_level(void) {
         return;
     }
 
-    for (i = 0; i < (sizeof(rules) / sizeof(rules[0])); i++) {
-        const struct Rule *rule = rules + i;
+    for (i = 0; i < (sizeof(thresholds) / sizeof(thresholds[0])); i++) {
         char level[sizeof("disengaged")];
 
-        if (rule == current_rule) {
+        if (thresholds[i] == current_threshold) {
             if (tick_penalty) {
                 return; /* Must wait longer until able to move down levels */
             }
             temp_penalty = fan_hysteresis;
         }
 
-        if (rule->threshold < temp_penalty ||
-            (rule->threshold - temp_penalty) < max_temp) {
-            if (rule != current_rule) {
-                current_rule = rule;
+        if (thresholds[i] < temp_penalty ||
+            (thresholds[i] - temp_penalty) < max_temp) {
+            if (thresholds[i] != current_threshold) {
+                current_threshold = thresholds[i];
                 tick_penalty = tick_hysteresis;
-                ret = snprintf(level, sizeof(level), "%d", rule->fan_level);
+                ret = snprintf(level, sizeof(level), "%d", fan_levels[i]);
                 expect(ret >= 0 && (size_t)ret < sizeof(level));
                 write_fan_level(level);
             }
@@ -154,7 +148,7 @@ static void set_fan_level(void) {
         }
     }
 
-    fprintf(stderr, "No rule matched?\n");
+    fprintf(stderr, "No threshold matched?\n");
 }
 
 #define CONFIG_PATH "/etc/zcfan.conf"
@@ -171,14 +165,15 @@ static void get_config(void) {
         return;
     }
 
-    if (fscanf(f, "%d %d %d", &max, &med, &low) != 3) {
-        fprintf(stderr, "Invalid config format, ignoring\n");
+    if (fscanf(f, "temp %d %d %d", &max, &med, &low) != 3 || max < med ||
+        med < low) {
+        fprintf(stderr, "Invalid config, ignoring\n");
         return;
     }
 
-    rules[0].threshold = max;
-    rules[1].threshold = med;
-    rules[2].threshold = low;
+    thresholds[FAN_MAX] = max;
+    thresholds[FAN_MED] = med;
+    thresholds[FAN_LOW] = low;
 }
 
 static void stop(int sig) { run = 0; }
@@ -188,11 +183,11 @@ int main(int argc, char *argv[]) {
         .sa_handler = stop,
     };
 
+    prog_name = argv[0];
+    get_config();
     expect(sigaction(SIGTERM, &sa_exit, NULL) == 0);
     expect(sigaction(SIGINT, &sa_exit, NULL) == 0);
     expect(setvbuf(stdout, output_buf, _IOLBF, sizeof(output_buf)) == 0);
-
-    prog_name = argv[0];
 
     while (run) {
         set_fan_level();
