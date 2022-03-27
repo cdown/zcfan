@@ -35,7 +35,7 @@ struct Rule {
 };
 
 /* Must be highest to lowest temp */
-static const struct Rule rules[] = {
+static struct Rule rules[] = {
     {90, FAN_MAX},
     {80, FAN_MED},
     {70, FAN_LOW},
@@ -155,6 +155,30 @@ static void set_fan_level(void) {
     }
 
     fprintf(stderr, "No rule matched?\n");
+}
+
+#define CONFIG_PATH "/etc/zcfan.conf"
+
+static void get_config(void) {
+    int max, med, low;
+    FILE *f;
+
+    f = fopen(CONFIG_PATH, "re");
+    if (!f) {
+        if (errno != ENOENT) {
+            fprintf(stderr, "%s: fopen: %s\n", CONFIG_PATH, strerror(errno));
+        }
+        return;
+    }
+
+    if (fscanf(f, "%d %d %d", &max, &med, &low) != 3) {
+        fprintf(stderr, "Invalid config format, ignoring\n");
+        return;
+    }
+
+    rules[0].threshold = max;
+    rules[1].threshold = med;
+    rules[2].threshold = low;
 }
 
 static void stop(int sig) { run = 0; }
