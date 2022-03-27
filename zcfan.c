@@ -75,7 +75,6 @@ static int read_temp_file(const char *filename) {
 static int get_max_temp(void) {
     int max_temp = TEMP_INVALID;
     int ret = glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files);
-    size_t i;
 
     if (ret) {
         expect(ret == GLOB_NOMATCH);
@@ -83,7 +82,7 @@ static int get_max_temp(void) {
         return TEMP_INVALID;
     }
 
-    for (i = 0; i < temp_files.gl_pathc; i++) {
+    for (size_t i = 0; i < temp_files.gl_pathc; i++) {
         int temp = read_temp_file(temp_files.gl_pathv[i]);
         max_temp = max(max_temp, temp);
     }
@@ -119,7 +118,6 @@ static void write_fan_level(const char *level) {
 static void set_fan_level(void) {
     int max_temp = get_max_temp(), temp_penalty = 0, ret;
     static unsigned int tick_penalty = tick_hysteresis;
-    size_t i;
 
     if (tick_penalty > 0) {
         tick_penalty--;
@@ -130,7 +128,7 @@ static void set_fan_level(void) {
         return;
     }
 
-    for (i = 0; i < FAN_INVALID; i++) {
+    for (size_t i = 0; i < FAN_INVALID; i++) {
         char level[sizeof("disengaged")];
 
         if (thresholds[i] == current_threshold) {
