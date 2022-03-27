@@ -37,7 +37,7 @@ much for my tastes. Use whichever suits your needs.
 
 ## Compilation
 
-Run `make zcfan`.
+Run `make`.
 
 ## Installation
 

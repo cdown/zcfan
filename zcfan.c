@@ -189,13 +189,17 @@ static void get_config(void) {
     }
 }
 
-static void stop(int sig) { run = 0; }
+static void stop(int sig) {
+    (void)sig;
+    run = 0;
+}
 
 int main(int argc, char *argv[]) {
     const struct sigaction sa_exit = {
         .sa_handler = stop,
     };
 
+    expect(argc > 0);
     prog_name = argv[0];
     get_config();
     expect(sigaction(SIGTERM, &sa_exit, NULL) == 0);
