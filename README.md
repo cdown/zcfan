@@ -30,7 +30,12 @@ example:
     med_temp 70
     low_temp 55
 
+## Compilation
+
+Run `make zcfan`.
+
 ## Installation
 
-1. Load your thinkpad_acpi module with `fan_control=1`;
-2. Run `zcfan` as root.
+1. Compile zcfan.
+2. Load your thinkpad_acpi module with `fan_control=1`;
+3. Run `zcfan` as root.
