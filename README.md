@@ -1,4 +1,4 @@
-# zcfan
+# zcfan [![LGTM](https://img.shields.io/lgtm/grade/cpp/github/cdown/zcfan.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/cdown/zcfan/alerts/?mode=list)
 
 Zero-configuration fan control daemon for ThinkPads.
 
