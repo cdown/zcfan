@@ -30,6 +30,11 @@ example:
     med_temp 70
     low_temp 55
 
+## Comparison with thinkfan
+
+I write zcfan because I found thinkfan's configuration and code complexity too
+much for my tastes. Use whichever suits your needs.
+
 ## Compilation
 
 Run `make zcfan`.
@@ -39,3 +44,8 @@ Run `make zcfan`.
 1. Compile zcfan.
 2. Load your thinkpad_acpi module with `fan_control=1`;
 3. Run `zcfan` as root.
+
+## Disclaimer
+
+While the author uses this on their own machine, obviously there is no warranty
+whatsoever.
