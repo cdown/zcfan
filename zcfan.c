@@ -25,30 +25,23 @@
 
 /* Must be highest to lowest temp */
 enum FanLevel { FAN_MAX, FAN_MED, FAN_LOW, FAN_OFF, FAN_INVALID };
-static int fan_levels[] = {
-    [FAN_MAX] = 7,
-    [FAN_MED] = 4,
-    [FAN_LOW] = 2,
-    [FAN_OFF] = 0,
+struct Rule {
+    const int tpacpi_level;
+    int threshold;
+    const char *name;
 };
-static int thresholds[] = {
-    [FAN_MAX] = 90,
-    [FAN_MED] = 80,
-    [FAN_LOW] = 70,
-    [FAN_OFF] = TEMP_MIN,
-};
-static const char *fan_level_names[] = {
-    [FAN_MAX] = "maximum",
-    [FAN_MED] = "medium",
-    [FAN_LOW] = "low",
-    [FAN_OFF] = "off",
+static struct Rule rules[] = {
+    [FAN_MAX] = {7, 90, "maximum"},
+    [FAN_MED] = {4, 80, "medium"},
+    [FAN_LOW] = {2, 70, "low"},
+    [FAN_OFF] = {0, TEMP_MIN, "off"},
 };
 
 static const char *prog_name = NULL;
 static const unsigned int fan_hysteresis = 10;
 static const unsigned int tick_hysteresis = 5;
 static char output_buf[512];
-static int current_threshold = TEMP_INVALID;
+static const struct Rule *current_rule = NULL;
 static glob_t temp_files;
 static volatile sig_atomic_t run = 1;
 
@@ -129,24 +122,25 @@ static void set_fan_level(void) {
     }
 
     for (size_t i = 0; i < FAN_INVALID; i++) {
+        const struct Rule *rule = rules + i;
         char level[sizeof("disengaged")];
 
-        if (thresholds[i] == current_threshold) {
+        if (rule == current_rule) {
             if (tick_penalty) {
                 return; /* Must wait longer until able to move down levels */
             }
             temp_penalty = fan_hysteresis;
         }
 
-        if (thresholds[i] < temp_penalty ||
-            (thresholds[i] - temp_penalty) < max_temp) {
-            if (thresholds[i] != current_threshold) {
-                current_threshold = thresholds[i];
+        if (rule->threshold < temp_penalty ||
+            (rule->threshold - temp_penalty) < max_temp) {
+            if (rule != current_rule) {
+                current_rule = rule;
                 tick_penalty = tick_hysteresis;
-                ret = snprintf(level, sizeof(level), "%d", fan_levels[i]);
+                ret = snprintf(level, sizeof(level), "%d", rule->tpacpi_level);
                 expect(ret >= 0 && (size_t)ret < sizeof(level));
                 printf("[FAN] Temperature now %dC, fan set to %s\n", max_temp,
-                       fan_level_names[i]);
+                       rule->name);
                 write_fan_level(level);
             }
             return;
@@ -161,7 +155,8 @@ static void set_fan_level(void) {
     do {                                                                       \
         int val;                                                               \
         if (fscanf(f, name " %d ", &val) == 1) {                               \
-            thresholds[fl] = val;                                              \
+            struct Rule *rule = rules + fl;                                    \
+            rule->threshold = val;                                             \
         } else {                                                               \
             expect(fseek(f, pos, SEEK_SET) == 0);                              \
         }                                                                      \
@@ -194,7 +189,8 @@ static void get_config(void) {
 
 static void print_thresholds(void) {
     for (size_t i = 0; i < FAN_OFF; i++) {
-        printf("[CFG] Fan %s at %dC\n", fan_level_names[i], thresholds[i]);
+        const struct Rule *rule = rules + i;
+        printf("[CFG] Fan %s at %dC\n", rule->name, rule->threshold);
     }
 }
 
