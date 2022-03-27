@@ -23,7 +23,7 @@
     } while (0)
 
 /* Must be highest to lowest temp */
-enum FanLevel { FAN_MAX, FAN_MED, FAN_LOW, FAN_OFF, _FAN_INVALID };
+enum FanLevel { FAN_MAX, FAN_MED, FAN_LOW, FAN_OFF, FAN_INVALID };
 static int fan_levels[] = {
     [FAN_MAX] = 7,
     [FAN_MED] = 4,
@@ -125,7 +125,7 @@ static void set_fan_level(void) {
         return;
     }
 
-    for (i = 0; i < _FAN_INVALID; i++) {
+    for (i = 0; i < FAN_INVALID; i++) {
         char level[sizeof("disengaged")];
 
         if (thresholds[i] == current_threshold) {
