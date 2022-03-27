@@ -189,7 +189,7 @@ static void get_config(void) {
 static void print_thresholds(void) {
     for (size_t i = 0; i < FAN_OFF; i++) {
         const struct Rule *rule = rules + i;
-        printf("[CFG] Fan %s at %dC\n", rule->name, rule->threshold);
+        printf("[CFG] At %dC fan is set to %s\n", rule->threshold, rule->name);
     }
 }
 
