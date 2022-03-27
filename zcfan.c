@@ -161,7 +161,6 @@ static void set_fan_level(void) {
     do {                                                                       \
         int val;                                                               \
         if (fscanf(f, name " %d ", &val) == 1) {                               \
-            printf("[CFG] Update %s = %d\n", name, val);                       \
             thresholds[fl] = val;                                              \
         } else {                                                               \
             expect(fseek(f, pos, SEEK_SET) == 0);                              \
@@ -193,6 +192,12 @@ static void get_config(void) {
     }
 }
 
+static void print_thresholds(void) {
+    for (size_t i = 0; i < FAN_OFF; i++) {
+        printf("[CFG] Fan %s at %dC\n", fan_level_names[i], thresholds[i]);
+    }
+}
+
 static void stop(int sig) {
     (void)sig;
     run = 0;
@@ -206,6 +211,7 @@ int main(int argc, char *argv[]) {
     expect(argc > 0);
     prog_name = argv[0];
     get_config();
+    print_thresholds();
     expect(sigaction(SIGTERM, &sa_exit, NULL) == 0);
     expect(sigaction(SIGINT, &sa_exit, NULL) == 0);
     expect(setvbuf(stdout, output_buf, _IOLBF, sizeof(output_buf)) == 0);
