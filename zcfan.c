@@ -37,6 +37,12 @@ static int thresholds[] = {
     [FAN_LOW] = 70,
     [FAN_OFF] = TEMP_MIN,
 };
+static const char *fan_level_names[] = {
+    [FAN_MAX] = "maximum",
+    [FAN_MED] = "medium",
+    [FAN_LOW] = "low",
+    [FAN_OFF] = "off",
+};
 
 static const char *prog_name = NULL;
 static const unsigned int fan_hysteresis = 10;
@@ -108,8 +114,6 @@ static void write_fan_level(const char *level) {
         return;
     }
     fclose(f);
-
-    printf("Set fan level %s\n", level);
 }
 
 static void set_fan_level(void) {
@@ -143,6 +147,8 @@ static void set_fan_level(void) {
                 tick_penalty = tick_hysteresis;
                 ret = snprintf(level, sizeof(level), "%d", fan_levels[i]);
                 expect(ret >= 0 && (size_t)ret < sizeof(level));
+                printf("[FAN] Temperature now %dC, fan set to %s\n", max_temp,
+                       fan_level_names[i]);
                 write_fan_level(level);
             }
             return;
@@ -157,7 +163,7 @@ static void set_fan_level(void) {
     do {                                                                       \
         int val;                                                               \
         if (fscanf(f, name " %d ", &val) == 1) {                               \
-            printf("Config update: %s = %d\n", name, val);                     \
+            printf("[CFG] Update %s = %d\n", name, val);                       \
             thresholds[fl] = val;                                              \
         } else {                                                               \
             expect(fseek(f, pos, SEEK_SET) == 0);                              \
@@ -213,5 +219,6 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    printf("[FAN] Quit requested, reenabling thinkpad_acpi fan control\n");
     write_fan_level("auto");
 }
