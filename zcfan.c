@@ -64,7 +64,7 @@ static int read_temp_file(const char *filename) {
         return errno;
     }
 
-    expect(fscanf(f, "%d", &val));
+    expect(fscanf(f, "%d", &val) == 1);
     fclose(f);
 
     return val;
