@@ -11,6 +11,7 @@
 #define TEMP_FILES_GLOB "/sys/class/thermal/thermal_zone*/temp"
 #define FAN_CONTROL_FILE "/proc/acpi/ibm/fan"
 #define TEMP_INVALID INT_MIN
+#define TEMP_MIN INT_MIN + 1
 
 #define max(x, y) ((x) > (y) ? (x) : (y))
 #define expect(x)                                                              \
@@ -34,7 +35,7 @@ static int thresholds[] = {
     [FAN_MAX] = 90,
     [FAN_MED] = 80,
     [FAN_LOW] = 70,
-    [FAN_OFF] = 0,
+    [FAN_OFF] = TEMP_MIN,
 };
 
 static const char *prog_name = NULL;
