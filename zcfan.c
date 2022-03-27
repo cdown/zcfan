@@ -153,7 +153,7 @@ static void set_fan_level(void) {
 }
 
 #define CONFIG_PATH "/etc/zcfan.conf"
-#define fscanf_field(f, pos, name, fl)                                         \
+#define fscanf_threshold(f, pos, name, fl)                                     \
     do {                                                                       \
         int val;                                                               \
         if (fscanf(f, name " %d ", &val) == 1) {                               \
@@ -179,9 +179,9 @@ static void get_config(void) {
         long pos = ftell(f);
         int ch;
         expect(pos >= 0);
-        fscanf_field(f, pos, "max_temp", FAN_MAX);
-        fscanf_field(f, pos, "med_temp", FAN_MED);
-        fscanf_field(f, pos, "low_temp", FAN_LOW);
+        fscanf_threshold(f, pos, "max_temp", FAN_MAX);
+        fscanf_threshold(f, pos, "med_temp", FAN_MED);
+        fscanf_threshold(f, pos, "low_temp", FAN_LOW);
         if (ftell(f) == pos) {
             while ((ch = fgetc(f)) != EOF && ch != '\n')
                 ;
