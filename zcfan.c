@@ -108,8 +108,7 @@ static void write_fan_level(const char *level) {
     ret = fprintf(f, "level %s", level);
     if (ret < 0) {
         fprintf(stderr, "%s: write: %s%s\n", FAN_CONTROL_FILE, strerror(errno),
-                errno == EINVAL ? " (did you forget to enable fan_control=1?)"
-                                : "");
+                errno == EINVAL ? " (did you enable fan_control=1?)" : "");
         return;
     }
     fclose(f);
