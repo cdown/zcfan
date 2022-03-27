@@ -23,7 +23,7 @@
     } while (0)
 
 /* Must be highest to lowest temp */
-enum FanLevel { FAN_MAX, FAN_MED, FAN_LOW, FAN_OFF };
+enum FanLevel { FAN_MAX, FAN_MED, FAN_LOW, FAN_OFF, _FAN_INVALID };
 static int fan_levels[] = {
     [FAN_MAX] = 7,
     [FAN_MED] = 4,
@@ -125,7 +125,7 @@ static void set_fan_level(void) {
         return;
     }
 
-    for (i = 0; i < (sizeof(thresholds) / sizeof(thresholds[0])); i++) {
+    for (i = 0; i < _FAN_INVALID; i++) {
         char level[sizeof("disengaged")];
 
         if (thresholds[i] == current_threshold) {
@@ -152,9 +152,18 @@ static void set_fan_level(void) {
 }
 
 #define CONFIG_PATH "/etc/zcfan.conf"
+#define fscanf_field(f, pos, name, fl)                                         \
+    do {                                                                       \
+        int val;                                                               \
+        if (fscanf(f, name " %d ", &val) == 1) {                               \
+            printf("Config update: %s = %d\n", name, val);                     \
+            thresholds[fl] = val;                                              \
+        } else {                                                               \
+            expect(fseek(f, pos, SEEK_SET) == 0);                              \
+        }                                                                      \
+    } while (0)
 
 static void get_config(void) {
-    int max, med, low;
     FILE *f;
 
     f = fopen(CONFIG_PATH, "re");
@@ -165,15 +174,18 @@ static void get_config(void) {
         return;
     }
 
-    if (fscanf(f, "temp %d %d %d", &max, &med, &low) != 3 || max < med ||
-        med < low) {
-        fprintf(stderr, "Invalid config, ignoring\n");
-        return;
+    while (!feof(f)) {
+        long pos = ftell(f);
+        int ch;
+        expect(pos >= 0);
+        fscanf_field(f, pos, "max_temp", FAN_MAX);
+        fscanf_field(f, pos, "med_temp", FAN_MED);
+        fscanf_field(f, pos, "low_temp", FAN_LOW);
+        if (ftell(f) == pos) {
+            while ((ch = fgetc(f)) != EOF && ch != '\n')
+                ;
+        }
     }
-
-    thresholds[FAN_MAX] = max;
-    thresholds[FAN_MED] = med;
-    thresholds[FAN_LOW] = low;
 }
 
 static void stop(int sig) { run = 0; }
