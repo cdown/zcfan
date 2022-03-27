@@ -41,9 +41,11 @@ Run `make zcfan`.
 
 ## Installation
 
-1. Compile zcfan.
-2. Load your thinkpad_acpi module with `fan_control=1`;
-3. Run `zcfan` as root.
+1. Compile zcfan
+2. Load your thinkpad_acpi module with `fan_control=1`
+    - At runtime: `rmmod thinkpad_acpi && modprobe thinkpad_acpi fan_control=1`
+    - By default: `echo options thinkpad_acpi fan_control=1 > /etc/modprobe.d/99-fancontrol.conf`
+3. Run `zcfan` as root
 
 ## Disclaimer
 
