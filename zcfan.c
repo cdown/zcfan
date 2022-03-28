@@ -37,7 +37,6 @@ static struct Rule rules[] = {
     [FAN_OFF] = {0, TEMP_MIN, "off"},
 };
 
-static const char *prog_name = NULL;
 static const unsigned int fan_hysteresis = 10;
 static const unsigned int tick_hysteresis = 5;
 static char output_buf[512];
@@ -71,7 +70,7 @@ static int get_max_temp(void) {
 
     if (ret) {
         expect(ret == GLOB_NOMATCH);
-        fprintf(stderr, "%s: Could not find temperature file\n", prog_name);
+        fprintf(stderr, "Could not find any valid temperature file\n");
         return TEMP_INVALID;
     }
 
@@ -198,13 +197,11 @@ static void stop(int sig) {
     run = 0;
 }
 
-int main(int argc, char *argv[]) {
+int main(void) {
     const struct sigaction sa_exit = {
         .sa_handler = stop,
     };
 
-    expect(argc > 0);
-    prog_name = argv[0];
     get_config();
     print_thresholds();
     expect(sigaction(SIGTERM, &sa_exit, NULL) == 0);
