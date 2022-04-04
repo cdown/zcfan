@@ -55,7 +55,7 @@ static int read_temp_file(const char *filename) {
 
     if (!f) {
         fprintf(stderr, "%s: fopen: %s\n", filename, strerror(errno));
-        return errno;
+        return -errno;
     }
 
     expect(fscanf(f, "%d", &val) == 1);
