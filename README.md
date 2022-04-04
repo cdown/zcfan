@@ -31,6 +31,15 @@ example:
     med_temp 70
     low_temp 55
 
+### Hysteresis
+
+We will only reduce the fan level again once:
+
+1. The temperature is now at least 10C below the trip point, and
+2. At least 5 seconds have elapsed since the initial trip.
+
+This avoids unnecessary fluctuations in fan speed.
+
 ## Comparison with thinkfan
 
 I write zcfan because I found thinkfan's configuration and code complexity too
