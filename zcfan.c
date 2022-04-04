@@ -8,7 +8,7 @@
 #include <unistd.h>
 
 #define MILLIC_TO_C(n) (n / 1000)
-#define TEMP_FILES_GLOB "/sys/class/thermal/thermal_zone*/temp"
+#define TEMP_FILES_GLOB "/sys/class/hwmon/hwmon*/temp*_input"
 #define FAN_CONTROL_FILE "/proc/acpi/ibm/fan"
 #define TEMP_INVALID INT_MIN
 #define TEMP_MIN INT_MIN + 1
@@ -58,9 +58,11 @@ static int read_temp_file(const char *filename) {
         return -errno;
     }
 
-    expect(fscanf(f, "%d", &val) == 1);
-    fclose(f);
+    if (fscanf(f, "%d", &val) != 1) {
+        val = -errno;
+    }
 
+    fclose(f);
     return val;
 }
 
