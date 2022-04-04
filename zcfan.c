@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #define MILLIC_TO_C(n) (n / 1000)
@@ -37,6 +38,8 @@ static struct Rule rules[] = {
     [FAN_OFF] = {0, TEMP_MIN, "off"},
 };
 
+static struct timespec last_watchdog_ping = {0, 0};
+static const unsigned int watchdog_secs = 120;
 static const unsigned int fan_hysteresis = 10;
 static const unsigned int tick_hysteresis = 5;
 static char output_buf[512];
@@ -90,7 +93,9 @@ static int get_max_temp(void) {
     return MILLIC_TO_C(max_temp);
 }
 
-static void write_fan_level(const char *level) {
+#define write_fan_level(level) write_fan("level", level)
+
+static void write_fan(const char *command, const char *value) {
     FILE *f = fopen(FAN_CONTROL_FILE, "we");
     int ret;
 
@@ -100,18 +105,28 @@ static void write_fan_level(const char *level) {
     }
 
     expect(setvbuf(f, NULL, _IONBF, 0) == 0); /* Make fprintf see errors */
-    ret = fprintf(f, "level %s", level);
+    ret = fprintf(f, "%s %s", command, value);
     if (ret < 0) {
         fprintf(stderr, "%s: write: %s%s\n", FAN_CONTROL_FILE, strerror(errno),
                 errno == EINVAL ? " (did you enable fan_control=1?)" : "");
         return;
     }
+    expect(clock_gettime(CLOCK_MONOTONIC, &last_watchdog_ping) == 0);
     fclose(f);
 }
 
-static void set_fan_level(void) {
+static void write_watchdog_timeout(const unsigned int timeout) {
+    char timeout_s[sizeof("120")]; /* max timeout value */
+    int ret = snprintf(timeout_s, sizeof(timeout_s), "%d", timeout);
+    expect(ret >= 0 && (size_t)ret < sizeof(timeout_s));
+    write_fan("watchdog", timeout_s);
+}
+
+/* 1: set fan level, 0: didn't set fan level */
+static int set_fan_level(void) {
     int max_temp = get_max_temp(), temp_penalty = 0, ret;
     static unsigned int tick_penalty = tick_hysteresis;
+    char level[sizeof("disengaged")];
 
     if (tick_penalty > 0) {
         tick_penalty--;
@@ -119,16 +134,15 @@ static void set_fan_level(void) {
 
     if (max_temp == TEMP_INVALID) {
         write_fan_level("full-speed");
-        return;
+        return 1;
     }
 
     for (size_t i = 0; i < FAN_INVALID; i++) {
         const struct Rule *rule = rules + i;
-        char level[sizeof("disengaged")];
 
         if (rule == current_rule) {
             if (tick_penalty) {
-                return; /* Must wait longer until able to move down levels */
+                return 0; /* Must wait longer until able to move down levels */
             }
             temp_penalty = fan_hysteresis;
         }
@@ -143,12 +157,32 @@ static void set_fan_level(void) {
                 printf("[FAN] Temperature now %dC, fan set to %s\n", max_temp,
                        rule->name);
                 write_fan_level(level);
+                return 1;
             }
-            return;
+            return 0;
         }
     }
 
     fprintf(stderr, "No threshold matched?\n");
+    return 0;
+}
+
+#define WATCHDOG_GRACE_PERIOD_SECS 2
+static void maybe_ping_watchdog(void) {
+    struct timespec now;
+    char level[sizeof("disengaged")];
+    int ret;
+
+    expect(clock_gettime(CLOCK_MONOTONIC, &now) == 0);
+
+    if (now.tv_sec - last_watchdog_ping.tv_sec <
+        (watchdog_secs - WATCHDOG_GRACE_PERIOD_SECS)) {
+        return;
+    }
+
+    ret = snprintf(level, sizeof(level), "%d", current_rule->tpacpi_level);
+    expect(ret >= 0 && (size_t)ret < sizeof(level));
+    write_fan_level(level);
 }
 
 #define CONFIG_PATH "/etc/zcfan.conf"
@@ -209,9 +243,14 @@ int main(void) {
     expect(sigaction(SIGTERM, &sa_exit, NULL) == 0);
     expect(sigaction(SIGINT, &sa_exit, NULL) == 0);
     expect(setvbuf(stdout, output_buf, _IOLBF, sizeof(output_buf)) == 0);
+    write_watchdog_timeout(watchdog_secs);
 
     while (run) {
-        set_fan_level();
+        int set = set_fan_level();
+        if (!set) {
+            maybe_ping_watchdog();
+        }
+
         if (run) {
             sleep(1);
         }
@@ -219,4 +258,5 @@ int main(void) {
 
     printf("[FAN] Quit requested, reenabling thinkpad_acpi fan control\n");
     write_fan_level("auto");
+    write_watchdog_timeout(0);
 }
