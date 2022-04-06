@@ -180,6 +180,7 @@ static void maybe_ping_watchdog(void) {
         return;
     }
 
+    expect(current_rule); /* Already set up on first run by set_fan_level */
     ret = snprintf(level, sizeof(level), "%d", current_rule->tpacpi_level);
     expect(ret >= 0 && (size_t)ret < sizeof(level));
     write_fan_level(level);
