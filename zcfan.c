@@ -39,7 +39,7 @@ static struct Rule rules[] = {
 };
 
 static struct timespec last_watchdog_ping = {0, 0};
-static const unsigned int watchdog_secs = 5;
+static const unsigned int watchdog_secs = 120;
 static const unsigned int fan_hysteresis = 10;
 static const unsigned int tick_hysteresis = 5;
 static char output_buf[512];
