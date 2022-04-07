@@ -26,8 +26,8 @@ zcfan has the following default fan states:
 
 If no trip temperature is reached, the fan will be turned off.
 
-To override these defaults, you can place a file at `/etc/zcfan.conf`. As an
-example:
+To override these defaults, you can place a file at `/etc/zcfan.conf` with
+updated trip temperatures in degrees celsius. As an example:
 
     max_temp 85
     med_temp 70
