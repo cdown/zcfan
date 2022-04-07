@@ -6,7 +6,8 @@ Zero-configuration fan control daemon for ThinkPads.
 
 - Extremely small (~250 lines), simple, and easy to understand code
 - Sensible out of the box, configuration is optional (see "usage" below)
-- Strong focus on stopping the fan as soon as safe to do so
+- Strong focus on stopping the fan as soon as safe to do so, without inducing
+  throttling
 - Automatic temperature- and time-based hysteresis: no bouncing between fan
   levels
 - Watchdog support
