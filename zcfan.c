@@ -95,13 +95,13 @@ static int get_max_temp(void) {
 
 #define write_fan_level(level) write_fan("level", level)
 
-static void write_fan(const char *command, const char *value) {
+static int write_fan(const char *command, const char *value) {
     FILE *f = fopen(FAN_CONTROL_FILE, "we");
     int ret;
 
     if (!f) {
         fprintf(stderr, "%s: fopen: %s\n", FAN_CONTROL_FILE, strerror(errno));
-        return;
+        return -errno;
     }
 
     expect(setvbuf(f, NULL, _IONBF, 0) == 0); /* Make fprintf see errors */
@@ -109,10 +109,11 @@ static void write_fan(const char *command, const char *value) {
     if (ret < 0) {
         fprintf(stderr, "%s: write: %s%s\n", FAN_CONTROL_FILE, strerror(errno),
                 errno == EINVAL ? " (did you enable fan_control=1?)" : "");
-        return;
+        return -errno;
     }
     expect(clock_gettime(CLOCK_MONOTONIC, &last_watchdog_ping) == 0);
     fclose(f);
+    return 0;
 }
 
 static void write_watchdog_timeout(const unsigned int timeout) {
@@ -258,6 +259,7 @@ int main(void) {
     }
 
     printf("[FAN] Quit requested, reenabling thinkpad_acpi fan control\n");
-    write_fan_level("auto");
-    write_watchdog_timeout(0);
+    if (write_fan_level("auto") == 0) {
+        write_watchdog_timeout(0);
+    }
 }
