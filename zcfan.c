@@ -14,6 +14,7 @@
 #define TEMP_INVALID INT_MIN
 #define TEMP_MIN INT_MIN + 1
 
+#define err(fmt, ...) fprintf(stderr, "[ERR] " fmt, ##__VA_ARGS__)
 #define max(x, y) ((x) > (y) ? (x) : (y))
 #define expect(x)                                                              \
     do {                                                                       \
@@ -46,9 +47,17 @@ static char output_buf[512];
 static const struct Rule *current_rule = NULL;
 static glob_t temp_files;
 static volatile sig_atomic_t run = 1;
+static int first_tick = 1; /* Stop running if errors are immediate */
+
+static void exit_if_first_tick(void) {
+    if (first_tick) {
+        err("Quitting due to failure during first run\n");
+        exit(1);
+    }
+}
 
 static int glob_err_handler(const char *epath, int eerrno) {
-    fprintf(stderr, "glob: %s: %s\n", epath, strerror(eerrno));
+    err("glob: %s: %s\n", epath, strerror(eerrno));
     return 0;
 }
 
@@ -57,7 +66,7 @@ static int read_temp_file(const char *filename) {
     int val;
 
     if (!f) {
-        fprintf(stderr, "%s: fopen: %s\n", filename, strerror(errno));
+        err("%s: fopen: %s\n", filename, strerror(errno));
         return -errno;
     }
 
@@ -75,7 +84,8 @@ static int get_max_temp(void) {
 
     if (ret) {
         expect(ret == GLOB_NOMATCH);
-        fprintf(stderr, "Could not find any valid temperature file\n");
+        err("Could not find any valid temperature file\n");
+        exit_if_first_tick();
         return TEMP_INVALID;
     }
 
@@ -86,7 +96,8 @@ static int get_max_temp(void) {
     globfree(&temp_files);
 
     if (max_temp == TEMP_INVALID) {
-        fprintf(stderr, "Couldn't find any valid temperature\n");
+        err("Couldn't find any valid temperature\n");
+        exit_if_first_tick();
         return TEMP_INVALID;
     }
 
@@ -100,15 +111,17 @@ static int write_fan(const char *command, const char *value) {
     int ret;
 
     if (!f) {
-        fprintf(stderr, "%s: fopen: %s\n", FAN_CONTROL_FILE, strerror(errno));
+        err("%s: fopen: %s\n", FAN_CONTROL_FILE, strerror(errno));
+        exit_if_first_tick();
         return -errno;
     }
 
     expect(setvbuf(f, NULL, _IONBF, 0) == 0); /* Make fprintf see errors */
     ret = fprintf(f, "%s %s", command, value);
     if (ret < 0) {
-        fprintf(stderr, "%s: write: %s%s\n", FAN_CONTROL_FILE, strerror(errno),
-                errno == EINVAL ? " (did you enable fan_control=1?)" : "");
+        err("%s: write: %s%s\n", FAN_CONTROL_FILE, strerror(errno),
+            errno == EINVAL ? " (did you enable fan_control=1?)" : "");
+        exit_if_first_tick();
         return -errno;
     }
     expect(clock_gettime(CLOCK_MONOTONIC, &last_watchdog_ping) == 0);
@@ -164,7 +177,7 @@ static int set_fan_level(void) {
         }
     }
 
-    fprintf(stderr, "No threshold matched?\n");
+    err("No threshold matched?\n");
     return 0;
 }
 
@@ -204,7 +217,8 @@ static void get_config(void) {
     f = fopen(CONFIG_PATH, "re");
     if (!f) {
         if (errno != ENOENT) {
-            fprintf(stderr, "%s: fopen: %s\n", CONFIG_PATH, strerror(errno));
+            err("%s: fopen: %s\n", CONFIG_PATH, strerror(errno));
+            exit_if_first_tick();
         }
         return;
     }
@@ -255,6 +269,7 @@ int main(void) {
 
         if (run) {
             sleep(1);
+            first_tick = 0;
         }
     }
 
