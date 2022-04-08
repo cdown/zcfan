@@ -111,7 +111,8 @@ static int write_fan(const char *command, const char *value) {
     int ret;
 
     if (!f) {
-        err("%s: fopen: %s\n", FAN_CONTROL_FILE, strerror(errno));
+        err("%s: fopen: %s%s\n", FAN_CONTROL_FILE, strerror(errno),
+            errno == ENOENT ? " (is thinkpad_acpi loaded?)" : "");
         exit_if_first_tick();
         return -errno;
     }
