@@ -232,8 +232,7 @@ static void get_config(void) {
         fscanf_threshold(f, pos, "med_temp", FAN_MED);
         fscanf_threshold(f, pos, "low_temp", FAN_LOW);
         if (ftell(f) == pos) {
-            while ((ch = fgetc(f)) != EOF && ch != '\n')
-                ;
+            while ((ch = fgetc(f)) != EOF && ch != '\n') {}
         }
     }
 }
