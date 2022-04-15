@@ -66,12 +66,11 @@ static int read_temp_file(const char *filename) {
     int val;
 
     if (!f) {
-        err("%s: fopen: %s\n", filename, strerror(errno));
-        return -errno;
+        return TEMP_INVALID;
     }
 
     if (fscanf(f, "%d", &val) != 1) {
-        val = -errno;
+        val = TEMP_INVALID;
     }
 
     fclose(f);
