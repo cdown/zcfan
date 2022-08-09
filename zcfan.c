@@ -190,7 +190,7 @@ static void maybe_ping_watchdog(void) {
     expect(clock_gettime(CLOCK_MONOTONIC, &now) == 0);
 
     if (now.tv_sec - last_watchdog_ping.tv_sec <
-        (watchdog_secs - WATCHDOG_GRACE_PERIOD_SECS)) {
+        (time_t)(watchdog_secs - WATCHDOG_GRACE_PERIOD_SECS)) {
         return;
     }
 
