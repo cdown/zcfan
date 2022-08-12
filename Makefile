@@ -1,4 +1,5 @@
 CFLAGS:=-std=gnu99 -O2 -pedantic -Wall -Wextra -Werror $(CFLAGS)
+CPPFLAGS:=$(CPPFLAGS)
 
 SOURCES=$(wildcard *.c)
 EXECUTABLES=$(patsubst %.c,%,$(SOURCES))
@@ -12,10 +13,10 @@ mandir:=$(datarootdir)/man
 all: $(EXECUTABLES)
 
 %: %.c
-	$(CC) $(CFLAGS) $< -o $@ $(LIBS) $(LDFLAGS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LIBS) $(LDFLAGS)
 
 %.o: %.c
-	$(CC) $(CFLAGS) $< -c -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< -c -o $@
 
 %: %.o
 	$(CC) $< -o $@ $(LIBS) $(LDFLAGS)
@@ -35,7 +36,7 @@ debug: all
 clang-tidy:
 	# DeprecatedOrUnsafeBufferHandling: See https://stackoverflow.com/a/50724865/945780
 	# clang-diagnostic-gnu-zero-variadic-macro-arguments: We require this for ##__VA_ARGS__
-	clang-tidy zcfan.c -checks=-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,-clang-diagnostic-gnu-zero-variadic-macro-arguments -- $(CFLAGS) $(LDFLAGS)
+	clang-tidy zcfan.c -checks=-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,-clang-diagnostic-gnu-zero-variadic-macro-arguments -- $(CPPFLAGS) $(CFLAGS) $(LDFLAGS)
 
 install: all
 	mkdir -p $(DESTDIR)$(bindir)/
