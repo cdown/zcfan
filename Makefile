@@ -6,6 +6,8 @@ EXECUTABLES=$(patsubst %.c,%,$(SOURCES))
 INSTALL:=install
 prefix:=/usr/local
 bindir:=$(prefix)/bin
+datarootdir:=$(prefix)/share
+mandir:=$(datarootdir)/man
 
 all: $(EXECUTABLES)
 
@@ -38,6 +40,7 @@ install: all
 	mkdir -p $(DESTDIR)$(bindir)/
 	$(INSTALL) -pt $(DESTDIR)$(bindir)/ $(EXECUTABLES)
 	$(INSTALL) -Dp -m 644 zcfan.service $(DESTDIR)$(prefix)/lib/systemd/system/zcfan.service
+	$(INSTALL) -Dp -m 644 zcfan.1 $(DESTDIR)$(mandir)/man1/zcfan.1
 
 clean:
 	rm -f $(EXECUTABLES)
