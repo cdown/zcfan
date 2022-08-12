@@ -248,10 +248,19 @@ static void stop(int sig) {
     run = 0;
 }
 
-int main(void) {
+int main(int argc, char *argv[]) {
     const struct sigaction sa_exit = {
         .sa_handler = stop,
     };
+
+    (void)argv;
+
+    if (argc != 1) {
+        printf("zcfan: Zero-configuration ThinkPad fan daemon.\n\n");
+        printf("  [any argument]     Show this help\n\n");
+        printf("See the zcfan(1) man page for details.\n");
+        return 0;
+    }
 
     get_config();
     print_thresholds();
