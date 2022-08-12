@@ -23,7 +23,7 @@ all: $(EXECUTABLES)
 # Noisy clang build that's expected to fail, but can be useful to find corner
 # cases.
 clang-everything: CC=clang
-clang-everything: CFLAGS+=-Weverything -Wno-disabled-macro-expansion -Wno-padded -Wno-covered-switch-default
+clang-everything: CFLAGS+=-Weverything -Wno-disabled-macro-expansion -Wno-padded -Wno-covered-switch-default -Wno-gnu-zero-variadic-macro-arguments
 clang-everything: all
 
 sanitisers: CFLAGS+=-fsanitize=address -fsanitize=undefined
@@ -34,7 +34,8 @@ debug: all
 
 clang-tidy:
 	# DeprecatedOrUnsafeBufferHandling: See https://stackoverflow.com/a/50724865/945780
-	clang-tidy zcfan.c -checks=-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling -- $(CFLAGS) $(LDFLAGS)
+	# clang-diagnostic-gnu-zero-variadic-macro-arguments: We require this for ##__VA_ARGS__
+	clang-tidy zcfan.c -checks=-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,-clang-diagnostic-gnu-zero-variadic-macro-arguments -- $(CFLAGS) $(LDFLAGS)
 
 install: all
 	mkdir -p $(DESTDIR)$(bindir)/
