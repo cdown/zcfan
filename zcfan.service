@@ -2,7 +2,7 @@
 Description=Zero-configuration fan control for ThinkPad
 
 [Service]
-ExecStart=/usr/bin/zcfan
+ExecStart=/usr/local/bin/zcfan
 Restart=always
 RestartSec=500ms
 
