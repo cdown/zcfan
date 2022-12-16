@@ -1,4 +1,4 @@
-CFLAGS:=-std=gnu99 -O2 -pedantic -Wall -Wextra -Werror $(CFLAGS)
+CFLAGS:=-std=gnu99 -O2 -pedantic -Wall -Wextra -Wwrite-strings -Warray-bounds -Wconversion -Wstrict-prototypes -Werror $(CFLAGS)
 CPPFLAGS:=$(CPPFLAGS)
 
 SOURCES=$(wildcard *.c)
@@ -27,7 +27,7 @@ clang-everything: CC=clang
 clang-everything: CFLAGS+=-Weverything -Wno-disabled-macro-expansion -Wno-padded -Wno-covered-switch-default -Wno-gnu-zero-variadic-macro-arguments
 clang-everything: all
 
-sanitisers: CFLAGS+=-fsanitize=address -fsanitize=undefined
+sanitisers: CFLAGS+=-fsanitize=address -fsanitize=undefined -fanalyzer
 sanitisers: debug
 
 debug: CFLAGS+=-Og -ggdb -fno-omit-frame-pointer
