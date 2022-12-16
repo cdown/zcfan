@@ -122,6 +122,7 @@ static int write_fan(const char *command, const char *value) {
         err("%s: write: %s%s\n", FAN_CONTROL_FILE, strerror(errno),
             errno == EINVAL ? " (did you enable fan_control=1?)" : "");
         exit_if_first_tick();
+        fclose(f);
         return -errno;
     }
     expect(clock_gettime(CLOCK_MONOTONIC, &last_watchdog_ping) == 0);
@@ -234,6 +235,8 @@ static void get_config(void) {
             while ((ch = fgetc(f)) != EOF && ch != '\n') {}
         }
     }
+
+    fclose(f);
 }
 
 static void print_thresholds(void) {
