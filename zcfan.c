@@ -45,7 +45,6 @@ static const unsigned int fan_hysteresis = 10;
 static const unsigned int tick_hysteresis = 3;
 static char output_buf[512];
 static const struct Rule *current_rule = NULL;
-static glob_t temp_files;
 static volatile sig_atomic_t run = 1;
 static int first_tick = 1; /* Stop running if errors are immediate */
 
@@ -78,6 +77,7 @@ static int read_temp_file(const char *filename) {
 }
 
 static int get_max_temp(void) {
+    glob_t temp_files;
     int max_temp = TEMP_INVALID;
     int ret = glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files);
 
