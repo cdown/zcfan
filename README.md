@@ -1,4 +1,4 @@
-# zcfan
+# zcfan | [![Tests](https://img.shields.io/github/actions/workflow/status/cdown/zcfan/ci.yml?branch=master)](https://github.com/cdown/zcfan/actions?query=branch%3Amaster)
 
 Zero-configuration fan control daemon for ThinkPads.
 
