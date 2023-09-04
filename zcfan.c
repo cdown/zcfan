@@ -13,6 +13,7 @@
 #define FAN_CONTROL_FILE "/proc/acpi/ibm/fan"
 #define TEMP_INVALID INT_MIN
 #define TEMP_MIN INT_MIN + 1
+#define TIME_JUMP_SECS 3
 
 #define err(fmt, ...) fprintf(stderr, "[ERR] " fmt, ##__VA_ARGS__)
 #define max(x, y) ((x) > (y) ? (x) : (y))
@@ -255,6 +256,7 @@ int main(int argc, char *argv[]) {
     const struct sigaction sa_exit = {
         .sa_handler = stop,
     };
+    time_t prev_time, curr_time;
 
     (void)argv;
 
@@ -271,9 +273,21 @@ int main(int argc, char *argv[]) {
     expect(sigaction(SIGINT, &sa_exit, NULL) == 0);
     expect(setvbuf(stdout, output_buf, _IOLBF, sizeof(output_buf)) == 0);
     write_watchdog_timeout(watchdog_secs);
+    time(&prev_time);
 
     while (run) {
-        int set = set_fan_level();
+        int set;
+
+        time(&curr_time);
+
+        if (difftime(curr_time, prev_time) > TIME_JUMP_SECS) {
+            printf("Detected possible sleep event, forcing fan reset\n");
+            write_fan_level("auto");
+        }
+
+        prev_time = curr_time;
+        set = set_fan_level();
+
         if (!set) {
             maybe_ping_watchdog();
         }
