@@ -58,6 +58,19 @@ At least 3 seconds have elapsed since the initial trip.
 
 This avoids unnecessary fluctuations in fan speed.
 
+.SS WATCHDOG
+
+The kernel watchdog is reset every 120 seconds by default, but a
+smaller value can be selected in the
+.I /etc/zcfan.conf
+config file with the syntax
+
+.RS
+.EX
+watchdog_secs 10
+.EE
+.RE
+
 .SH DEPENDENCIES
 .B thinkpad-acpi
 must be loaded with

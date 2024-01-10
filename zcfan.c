@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <glob.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <signal.h>
 #include <stdio.h>
@@ -13,6 +14,11 @@
 #define FAN_CONTROL_FILE "/proc/acpi/ibm/fan"
 #define TEMP_INVALID INT_MIN
 #define TEMP_MIN INT_MIN + 1
+
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+#define DEFAULT_WATCHDOG_SECS 120
+#define S_DEFAULT_WATCHDOG_SECS STR(DEFAULT_WATCHDOG_SECS)
 
 #define err(fmt, ...) fprintf(stderr, "[ERR] " fmt, ##__VA_ARGS__)
 #define max(x, y) ((x) > (y) ? (x) : (y))
@@ -40,7 +46,7 @@ static struct Rule rules[] = {
 };
 
 static struct timespec last_watchdog_ping = {0, 0};
-static const time_t watchdog_secs = 120;
+static time_t watchdog_secs = DEFAULT_WATCHDOG_SECS;
 static const unsigned int fan_hysteresis = 10;
 static const unsigned int tick_hysteresis = 3;
 static char output_buf[512];
@@ -130,9 +136,10 @@ static int write_fan(const char *command, const char *value) {
     return 0;
 }
 
-static void write_watchdog_timeout(const unsigned int timeout) {
-    char timeout_s[sizeof("120")]; /* max timeout value */
-    int ret = snprintf(timeout_s, sizeof(timeout_s), "%d", timeout);
+static void write_watchdog_timeout(const time_t timeout) {
+    char timeout_s[sizeof(S_DEFAULT_WATCHDOG_SECS)]; /* max timeout value */
+    int ret =
+        snprintf(timeout_s, sizeof(timeout_s), "%" PRIuMAX, (uintmax_t)timeout);
     expect(ret >= 0 && (size_t)ret < sizeof(timeout_s));
     write_fan("watchdog", timeout_s);
 }
@@ -202,11 +209,11 @@ static void maybe_ping_watchdog(void) {
 }
 
 #define CONFIG_PATH "/etc/zcfan.conf"
-#define fscanf_threshold(f, pos, name, fl)                                     \
+#define fscanf_int_for_key(f, pos, name, fl)                                   \
     do {                                                                       \
         int val;                                                               \
         if (fscanf(f, name " %d ", &val) == 1) {                               \
-            rules[fl].threshold = val;                                         \
+            fl = val;                                                          \
         } else {                                                               \
             expect(fseek(f, pos, SEEK_SET) == 0);                              \
         }                                                                      \
@@ -228,12 +235,22 @@ static void get_config(void) {
         long pos = ftell(f);
         int ch;
         expect(pos >= 0);
-        fscanf_threshold(f, pos, "max_temp", FAN_MAX);
-        fscanf_threshold(f, pos, "med_temp", FAN_MED);
-        fscanf_threshold(f, pos, "low_temp", FAN_LOW);
+        fscanf_int_for_key(f, pos, "max_temp", rules[FAN_MAX].threshold);
+        fscanf_int_for_key(f, pos, "med_temp", rules[FAN_MED].threshold);
+        fscanf_int_for_key(f, pos, "low_temp", rules[FAN_LOW].threshold);
+        fscanf_int_for_key(f, pos, "watchdog_secs", watchdog_secs);
         if (ftell(f) == pos) {
             while ((ch = fgetc(f)) != EOF && ch != '\n') {}
         }
+    }
+
+    /* Maximum value handled by the kernel is 120, and
+     * (watchdog_secs - WATCHDOG_GRACE_PERIOD_SECS) must stay positive. */
+    if (watchdog_secs < WATCHDOG_GRACE_PERIOD_SECS ||
+        watchdog_secs > DEFAULT_WATCHDOG_SECS) {
+        err("%s: value for the watchdog_secs directive has to be between %d and %d\n",
+            CONFIG_PATH, WATCHDOG_GRACE_PERIOD_SECS, DEFAULT_WATCHDOG_SECS);
+        exit(1);
     }
 
     fclose(f);
