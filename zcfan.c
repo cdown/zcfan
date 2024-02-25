@@ -34,15 +34,15 @@
 /* Must be highest to lowest temp */
 enum FanLevel { FAN_MAX, FAN_MED, FAN_LOW, FAN_OFF, FAN_INVALID };
 struct Rule {
-    const int tpacpi_level;
+    const char *tpacpi_level;
     int threshold;
     const char *name;
 };
 static struct Rule rules[] = {
-    [FAN_MAX] = {7, 90, "maximum"},
-    [FAN_MED] = {4, 80, "medium"},
-    [FAN_LOW] = {1, 70, "low"},
-    [FAN_OFF] = {0, TEMP_MIN, "off"},
+    [FAN_MAX] = {"7", 90, "maximum"},
+    [FAN_MED] = {"4", 80, "medium"},
+    [FAN_LOW] = {"1", 70, "low"},
+    [FAN_OFF] = {"0", TEMP_MIN, "off"},
 };
 
 static struct timespec last_watchdog_ping = {0, 0};
@@ -146,9 +146,8 @@ static void write_watchdog_timeout(const time_t timeout) {
 
 /* 1: set fan level, 0: didn't set fan level */
 static int set_fan_level(void) {
-    int max_temp = get_max_temp(), temp_penalty = 0, ret;
+    int max_temp = get_max_temp(), temp_penalty = 0;
     static unsigned int tick_penalty = tick_hysteresis;
-    char level[sizeof("disengaged")];
 
     if (tick_penalty > 0) {
         tick_penalty--;
@@ -174,11 +173,9 @@ static int set_fan_level(void) {
             if (rule != current_rule) {
                 current_rule = rule;
                 tick_penalty = tick_hysteresis;
-                ret = snprintf(level, sizeof(level), "%d", rule->tpacpi_level);
-                expect(ret >= 0 && (size_t)ret < sizeof(level));
                 printf("[FAN] Temperature now %dC, fan set to %s\n", max_temp,
                        rule->name);
-                write_fan_level(level);
+                write_fan_level(rule->tpacpi_level);
                 return 1;
             }
             return 0;
@@ -192,8 +189,6 @@ static int set_fan_level(void) {
 #define WATCHDOG_GRACE_PERIOD_SECS 2
 static void maybe_ping_watchdog(void) {
     struct timespec now;
-    char level[sizeof("disengaged")];
-    int ret;
 
     expect(clock_gettime(CLOCK_MONOTONIC, &now) == 0);
 
@@ -203,9 +198,7 @@ static void maybe_ping_watchdog(void) {
     }
 
     expect(current_rule); /* Already set up on first run by set_fan_level */
-    ret = snprintf(level, sizeof(level), "%d", current_rule->tpacpi_level);
-    expect(ret >= 0 && (size_t)ret < sizeof(level));
-    write_fan_level(level);
+    write_fan_level(current_rule->tpacpi_level);
 }
 
 #define CONFIG_PATH "/etc/zcfan.conf"
