@@ -33,7 +33,7 @@ struct Rule {
     const char *name;
 };
 static struct Rule rules[] = {
-    [FAN_MAX] = {"7", 90, "maximum"},
+    [FAN_MAX] = {"full-speed", 90, "maximum"},
     [FAN_MED] = {"4", 80, "medium"},
     [FAN_LOW] = {"1", 70, "low"},
     [FAN_OFF] = {"0", TEMP_MIN, "off"},
@@ -58,6 +58,26 @@ static void exit_if_first_tick(void) {
 static int glob_err_handler(const char *epath, int eerrno) {
     err("glob: %s: %s\n", epath, strerror(eerrno));
     return 0;
+}
+
+static int full_speed_supported(void) {
+    FILE *f = fopen("/proc/acpi/ibm/fan", "re");
+    char line[256]; // If exceeded, we'll just read again
+    int found = 0;
+
+    if (!f) {
+        exit_if_first_tick();
+    }
+
+    while (fgets(line, sizeof(line), f) != NULL) {
+        if (strstr(line, "full-speed") != NULL) {
+            found = 1;
+            break;
+        }
+    }
+
+    fclose(f);
+    return found;
 }
 
 static int read_temp_file(const char *filename) {
@@ -263,6 +283,12 @@ int main(int argc, char *argv[]) {
     expect(sigaction(SIGTERM, &sa_exit, NULL) == 0);
     expect(sigaction(SIGINT, &sa_exit, NULL) == 0);
     expect(setvbuf(stdout, output_buf, _IOLBF, sizeof(output_buf)) == 0);
+
+    if (!full_speed_supported()) {
+        err("level \"full-speed\" not supported, using level 7\n");
+        rules[FAN_MAX].tpacpi_level = "7";
+    }
+
     write_watchdog_timeout(watchdog_secs);
 
     while (run) {

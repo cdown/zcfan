@@ -18,11 +18,11 @@ Zero-configuration fan control daemon for ThinkPads.
 
 zcfan has the following default fan states:
 
-| Config name | thinkpad_acpi fan level | Default trip temperature (C) |
-|-------------|-------------------------|------------------------------|
-| max_temp    | 7                       | 90                           |
-| med_temp    | 4                       | 80                           |
-| low_temp    | 1                       | 70                           |
+| Config name | thinkpad_acpi fan level           | Default trip temperature (C) |
+|-------------|-----------------------------------|------------------------------|
+| max_temp    | full-speed (or 7 if unsupported)  | 90                           |
+| med_temp    | 4                                 | 80                           |
+| low_temp    | 1                                 | 70                           |
 
 If no trip temperature is reached, the fan will be turned off.
 
