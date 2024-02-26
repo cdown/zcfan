@@ -38,7 +38,7 @@ updated trip temperatures in degrees celsius. As an example:
 We will only reduce the fan level again once:
 
 1. The temperature is now at least 10C below the trip point, and
-2. At least 3 seconds have elapsed since the initial trip.
+2. At least 10 seconds have elapsed since the initial trip.
 
 This avoids unnecessary fluctuations in fan speed.
 

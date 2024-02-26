@@ -48,7 +48,7 @@ static struct Rule rules[] = {
 static struct timespec last_watchdog_ping = {0, 0};
 static time_t watchdog_secs = DEFAULT_WATCHDOG_SECS;
 static const unsigned int fan_hysteresis = 10;
-static const unsigned int tick_hysteresis = 3;
+static const unsigned int tick_hysteresis = 1;
 static char output_buf[512];
 static const struct Rule *current_rule = NULL;
 static volatile sig_atomic_t run = 1;
@@ -309,7 +309,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (run) {
-            sleep(1);
+            sleep(5);
             first_tick = 0;
         }
     }
