@@ -44,7 +44,7 @@ This avoids unnecessary fluctuations in fan speed.
 
 ## Comparison with thinkfan
 
-I write zcfan because I found thinkfan's configuration and code complexity too
+I wrote zcfan because I found thinkfan's configuration and code complexity too
 much for my tastes. Use whichever suits your needs.
 
 ## Compilation
