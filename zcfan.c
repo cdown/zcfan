@@ -68,13 +68,7 @@ static int glob_err_handler(const char *epath, int eerrno) {
 }
 
 static void populate_temp_files(void) {
-    int ret = glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files);
-
-    if (ret) {
-        expect(ret == GLOB_NOMATCH);
-        err("Could not find any valid temperature file\n");
-        exit_if_first_tick();
-    }
+    expect(glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files) == 0);
 }
 
 static int full_speed_supported(void) {
@@ -82,9 +76,7 @@ static int full_speed_supported(void) {
     char line[256]; // If exceeded, we'll just read again
     int found = 0;
 
-    if (!f) {
-        exit_if_first_tick();
-    }
+    expect(f);
 
     while (fgets(line, sizeof(line), f) != NULL) {
         if (strstr(line, "full-speed") != NULL) {
