@@ -72,7 +72,7 @@ static void populate_temp_files(void) {
 }
 
 static int full_speed_supported(void) {
-    FILE *f = fopen("/proc/acpi/ibm/fan", "re");
+    FILE *f = fopen(FAN_CONTROL_FILE, "re");
     char line[256]; // If exceeded, we'll just read again
     int found = 0;
 
