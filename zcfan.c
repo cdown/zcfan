@@ -53,6 +53,7 @@ static char output_buf[512];
 static const struct Rule *current_rule = NULL;
 static volatile sig_atomic_t run = 1;
 static int first_tick = 1; /* Stop running if errors are immediate */
+static glob_t temp_files;
 
 static void exit_if_first_tick(void) {
     if (first_tick) {
@@ -64,6 +65,16 @@ static void exit_if_first_tick(void) {
 static int glob_err_handler(const char *epath, int eerrno) {
     err("glob: %s: %s\n", epath, strerror(eerrno));
     return 0;
+}
+
+static void populate_temp_files(void) {
+    int ret = glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files);
+
+    if (ret) {
+        expect(ret == GLOB_NOMATCH);
+        err("Could not find any valid temperature file\n");
+        exit_if_first_tick();
+    }
 }
 
 static int full_speed_supported(void) {
@@ -103,22 +114,12 @@ static int read_temp_file(const char *filename) {
 }
 
 static int get_max_temp(void) {
-    glob_t temp_files;
     int max_temp = TEMP_INVALID;
-    int ret = glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files);
-
-    if (ret) {
-        expect(ret == GLOB_NOMATCH);
-        err("Could not find any valid temperature file\n");
-        exit_if_first_tick();
-        return TEMP_INVALID;
-    }
 
     for (size_t i = 0; i < temp_files.gl_pathc; i++) {
         int temp = read_temp_file(temp_files.gl_pathv[i]);
         max_temp = max(max_temp, temp);
     }
-    globfree(&temp_files);
 
     if (max_temp == TEMP_INVALID) {
         err("Couldn't find any valid temperature\n");
@@ -307,6 +308,7 @@ int main(int argc, char *argv[]) {
     }
 
     write_watchdog_timeout(watchdog_secs);
+    populate_temp_files();
 
     while (run) {
         int set = set_fan_level();
@@ -320,6 +322,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    globfree(&temp_files);
     printf("[FAN] Quit requested, reenabling thinkpad_acpi fan control\n");
     if (write_fan_level("auto") == 0) {
         write_watchdog_timeout(0);
