@@ -215,11 +215,11 @@ static void maybe_ping_watchdog(void) {
 }
 
 #define CONFIG_PATH "/etc/zcfan.conf"
-#define fscanf_int_for_key(f, pos, name, fl)                                   \
+#define fscanf_int_for_key(f, pos, name, dest)                                 \
     do {                                                                       \
         int val;                                                               \
         if (fscanf(f, name " %d ", &val) == 1) {                               \
-            fl = val;                                                          \
+            dest = val;                                                        \
         } else {                                                               \
             expect(fseek(f, pos, SEEK_SET) == 0);                              \
         }                                                                      \
