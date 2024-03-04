@@ -1,5 +1,6 @@
 [Unit]
 Description=Zero-configuration fan control for ThinkPad
+Conflicts=thinkfan.service
 
 [Service]
 ExecStart=/usr/bin/zcfan
