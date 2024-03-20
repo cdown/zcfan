@@ -26,18 +26,24 @@ zcfan has the following default fan states:
 
 If no trip temperature is reached, the fan will be turned off.
 
+The fan will also only be reduced once the temperature is now at least 10C
+below the trip temperature for the current fan state. This can be tuned with
+the config parameter `temp_hysteresis`.
+
 To override these defaults, you can place a file at `/etc/zcfan.conf` with
 updated trip temperatures in degrees celsius. As an example:
 
     max_temp 85
     med_temp 70
     low_temp 55
+    temp_hysteresis 20
 
 ### Hysteresis
 
 We will only reduce the fan level again once:
 
-1. The temperature is now at least 10C below the trip point, and
+1. The temperature is now at least `temp_hysteresis` Celsius (default 10C)
+   below the trip point, and
 2. At least 3 seconds have elapsed since the initial trip.
 
 This avoids unnecessary fluctuations in fan speed.

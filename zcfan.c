@@ -47,7 +47,7 @@ static struct Rule rules[] = {
 
 static struct timespec last_watchdog_ping = {0, 0};
 static time_t watchdog_secs = DEFAULT_WATCHDOG_SECS;
-static const unsigned int fan_hysteresis = 10;
+static int temp_hysteresis = 10;
 static const unsigned int tick_hysteresis = 3;
 static char output_buf[512];
 static const struct Rule *current_rule = NULL;
@@ -178,7 +178,7 @@ static int set_fan_level(void) {
             if (tick_penalty) {
                 return 0; /* Must wait longer until able to move down levels */
             }
-            temp_penalty = fan_hysteresis;
+            temp_penalty = temp_hysteresis;
         }
 
         if (rule->threshold < temp_penalty ||
@@ -245,6 +245,7 @@ static void get_config(void) {
         fscanf_int_for_key(f, pos, "med_temp", rules[FAN_MED].threshold);
         fscanf_int_for_key(f, pos, "low_temp", rules[FAN_LOW].threshold);
         fscanf_int_for_key(f, pos, "watchdog_secs", watchdog_secs);
+        fscanf_int_for_key(f, pos, "temp_hysteresis", temp_hysteresis);
         if (ftell(f) == pos) {
             while ((ch = fgetc(f)) != EOF && ch != '\n') {}
         }

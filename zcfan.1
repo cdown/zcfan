@@ -51,7 +51,9 @@ If no trip temperature is reached, the fan will be turned off.
 
 We will only reduce the fan level again once:
 .IP "1." 3
-The temperature is now at least 10C below the trip point, and
+The temperature is now at least
+.I temp_hysteresis
+Celsius below the trip point (default 10C), and
 .IP "2." 3
 At least 3 seconds have elapsed since the initial trip.
 .PP
