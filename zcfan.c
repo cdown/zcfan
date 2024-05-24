@@ -225,6 +225,16 @@ static void maybe_ping_watchdog(void) {
         }                                                                      \
     } while (0)
 
+#define fscanf_str_for_key(f, pos, name, dest)                                 \
+    do {                                                                       \
+        char val[256];                                                         \
+        if (fscanf(f, name " %255s ", val) == 1) {                             \
+            dest = strdup(val);                                                \
+        } else {                                                               \
+            expect(fseek(f, pos, SEEK_SET) == 0);                              \
+        }                                                                      \
+    } while (0)
+
 static void get_config(void) {
     FILE *f;
 
@@ -246,6 +256,9 @@ static void get_config(void) {
         fscanf_int_for_key(f, pos, "low_temp", rules[FAN_LOW].threshold);
         fscanf_int_for_key(f, pos, "watchdog_secs", watchdog_secs);
         fscanf_int_for_key(f, pos, "temp_hysteresis", temp_hysteresis);
+        fscanf_str_for_key(f, pos, "max_level", rules[FAN_MAX].tpacpi_level);
+        fscanf_str_for_key(f, pos, "med_level", rules[FAN_MED].tpacpi_level);
+        fscanf_str_for_key(f, pos, "low_level", rules[FAN_LOW].tpacpi_level);
         if (ftell(f) == pos) {
             while ((ch = fgetc(f)) != EOF && ch != '\n') {}
         }

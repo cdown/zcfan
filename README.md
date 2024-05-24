@@ -33,6 +33,9 @@ the config parameter `temp_hysteresis`.
 To override these defaults, you can place a file at `/etc/zcfan.conf` with
 updated trip temperatures in degrees celsius. As an example:
 
+    max_level full-speed
+    med_level 4
+    low_level 1
     max_temp 85
     med_temp 70
     low_temp 55
