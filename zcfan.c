@@ -225,10 +225,12 @@ static void maybe_ping_watchdog(void) {
         }                                                                      \
     } while (0)
 
+#define CONFIG_MAX_STRLEN 15
+#define S_CONFIG_MAX_STRLEN STR(CONFIG_MAX_STRLEN)
 #define fscanf_str_for_key(f, pos, name, dest)                                 \
     do {                                                                       \
-        char val[256];                                                         \
-        if (fscanf(f, name " %255s ", val) == 1) {                             \
+        char val[CONFIG_MAX_STRLEN + 1];                                       \
+        if (fscanf(f, name " %" S_CONFIG_MAX_STRLEN "s ", val) == 1) {         \
             dest = strdup(val);                                                \
         } else {                                                               \
             expect(fseek(f, pos, SEEK_SET) == 0);                              \
