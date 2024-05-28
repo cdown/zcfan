@@ -31,10 +31,13 @@
         }                                                                      \
     } while (0)
 
+#define CONFIG_MAX_STRLEN 15
+#define S_CONFIG_MAX_STRLEN STR(CONFIG_MAX_STRLEN)
+
 /* Must be highest to lowest temp */
 enum FanLevel { FAN_MAX, FAN_MED, FAN_LOW, FAN_OFF, FAN_INVALID };
 struct Rule {
-    const char *tpacpi_level;
+    char tpacpi_level[CONFIG_MAX_STRLEN + 1];
     int threshold;
     const char *name;
 };
@@ -225,6 +228,17 @@ static void maybe_ping_watchdog(void) {
         }                                                                      \
     } while (0)
 
+#define fscanf_str_for_key(f, pos, name, dest)                                 \
+    do {                                                                       \
+        char val[CONFIG_MAX_STRLEN + 1];                                       \
+        if (fscanf(f, name " %" S_CONFIG_MAX_STRLEN "s ", val) == 1) {         \
+            strncpy(dest, val, CONFIG_MAX_STRLEN);                             \
+            dest[CONFIG_MAX_STRLEN] = '\0';                                    \
+        } else {                                                               \
+            expect(fseek(f, pos, SEEK_SET) == 0);                              \
+        }                                                                      \
+    } while (0)
+
 static void get_config(void) {
     FILE *f;
 
@@ -246,6 +260,9 @@ static void get_config(void) {
         fscanf_int_for_key(f, pos, "low_temp", rules[FAN_LOW].threshold);
         fscanf_int_for_key(f, pos, "watchdog_secs", watchdog_secs);
         fscanf_int_for_key(f, pos, "temp_hysteresis", temp_hysteresis);
+        fscanf_str_for_key(f, pos, "max_level", rules[FAN_MAX].tpacpi_level);
+        fscanf_str_for_key(f, pos, "med_level", rules[FAN_MED].tpacpi_level);
+        fscanf_str_for_key(f, pos, "low_level", rules[FAN_LOW].tpacpi_level);
         if (ftell(f) == pos) {
             while ((ch = fgetc(f)) != EOF && ch != '\n') {}
         }
@@ -297,7 +314,8 @@ int main(int argc, char *argv[]) {
 
     if (!full_speed_supported()) {
         err("level \"full-speed\" not supported, using level 7\n");
-        rules[FAN_MAX].tpacpi_level = "7";
+        strncpy(rules[FAN_MAX].tpacpi_level, "7", CONFIG_MAX_STRLEN);
+        rules[FAN_MAX].tpacpi_level[CONFIG_MAX_STRLEN] = '\0';
     }
 
     write_watchdog_timeout(watchdog_secs);
