@@ -213,8 +213,9 @@ static void maybe_ping_watchdog(void) {
         return;
     }
 
-    expect(current_rule); /* Already set up on first run by set_fan_level */
-    write_fan_level(current_rule->tpacpi_level);
+    // Transitioning from level 0 -> level 0 can cause a brief fan spinup on
+    // some models, so don't reset the timer by write_fan_level().
+    write_watchdog_timeout(watchdog_secs);
 }
 
 #define CONFIG_PATH "/etc/zcfan.conf"
