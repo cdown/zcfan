@@ -10,7 +10,13 @@ bindir:=$(prefix)/bin
 datarootdir:=$(prefix)/share
 mandir:=$(datarootdir)/man
 
-all: $(EXECUTABLES)
+SERVICE_TEMPLATE=zcfan.service.in
+SERVICE=zcfan.service
+
+all: $(EXECUTABLES) $(SERVICE)
+
+$(SERVICE): $(SERVICE_TEMPLATE)
+	sed 's|@bindir@|$(bindir)|g' $< > $@
 
 %: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LIBS) $(LDFLAGS)
@@ -41,11 +47,11 @@ clang-tidy:
 install: all
 	mkdir -p $(DESTDIR)$(bindir)/
 	$(INSTALL) -pt $(DESTDIR)$(bindir)/ $(EXECUTABLES)
-	$(INSTALL) -Dp -m 644 zcfan.service $(DESTDIR)$(prefix)/lib/systemd/system/zcfan.service
+	$(INSTALL) -Dp -m 644 $(SERVICE) $(DESTDIR)$(prefix)/lib/systemd/system/$(SERVICE)
 	$(INSTALL) -Dp -m 644 zcfan.1 $(DESTDIR)$(mandir)/man1/zcfan.1
 
 lint:
 	clang-format -style=file --dry-run --Werror zcfan.c
 
 clean:
-	rm -f $(EXECUTABLES)
+	rm -f $(EXECUTABLES) $(SERVICE)
