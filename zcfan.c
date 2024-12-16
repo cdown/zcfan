@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/timerfd.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -203,10 +204,60 @@ static int set_fan_level(void) {
 }
 
 #define WATCHDOG_GRACE_PERIOD_SECS 2
+
+enum resume_state {
+    RESUME_NOT_DETECTED,
+    RESUME_DETECTED,
+};
+
+/* detect_resume sets up a 100ms interval timer (based on CLOCK_BOOTTIME),
+ * which continues running during suspend. Each call to detect_resume reads how
+ * many intervals have passed since the last read. If increments > 1, it means
+ * that more than one second passed without detection, indicating a likely
+ * suspend/resume event.
+ */
+static enum resume_state detect_resume(void) {
+    static int tfd = -1;
+
+    if (tfd == -1) {
+        tfd = timerfd_create(CLOCK_BOOTTIME, TFD_CLOEXEC | TFD_NONBLOCK);
+        expect(tfd >= 0);
+
+        struct itimerspec its;
+        memset(&its, 0, sizeof(its));
+        its.it_interval.tv_nsec = 100000000;
+        its.it_value.tv_nsec = 100000000;
+        expect(timerfd_settime(tfd, 0, &its, NULL) == 0);
+
+        /* Nothing to check against yet */
+        return RESUME_NOT_DETECTED;
+    }
+
+    uint64_t expirations = 0;
+    ssize_t r = read(tfd, &expirations, sizeof(expirations));
+    if (r < 0) {
+        err("timerfd read error: %s\n", strerror(errno));
+        exit_if_first_tick();
+        return RESUME_NOT_DETECTED;
+    }
+
+    /* If expirations > 11, we're lagging and probably were suspended */
+    if (expirations > 11) {
+        return RESUME_DETECTED;
+    }
+
+    return RESUME_NOT_DETECTED;
+}
+
 static void maybe_ping_watchdog(void) {
     struct timespec now;
 
+    expect(current_rule);
     expect(clock_gettime(CLOCK_MONOTONIC, &now) == 0);
+
+    if (detect_resume() == RESUME_DETECTED) {
+        write_fan_level(current_rule->tpacpi_level);
+    }
 
     if (now.tv_sec - last_watchdog_ping.tv_sec <
         (watchdog_secs - WATCHDOG_GRACE_PERIOD_SECS)) {
