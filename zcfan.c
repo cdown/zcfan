@@ -14,12 +14,15 @@
 #define FAN_CONTROL_FILE "/proc/acpi/ibm/fan"
 #define TEMP_INVALID INT_MIN
 #define TEMP_MIN INT_MIN + 1
+#define NANOSECONDS_IN_SEC 1000000000L // 1 second in nanoseconds
+#define THRESHOLD_NS 200000000         // 0.2 seconds
 
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
 #define DEFAULT_WATCHDOG_SECS 120
 #define S_DEFAULT_WATCHDOG_SECS STR(DEFAULT_WATCHDOG_SECS)
 
+#define info(fmt, ...) fprintf(stderr, "[INF] " fmt, ##__VA_ARGS__)
 #define err(fmt, ...) fprintf(stderr, "[ERR] " fmt, ##__VA_ARGS__)
 #define max(x, y) ((x) > (y) ? (x) : (y))
 #define expect(x)                                                              \
@@ -58,11 +61,56 @@ static volatile sig_atomic_t run = 1;
 static int first_tick = 1; /* Stop running if errors are immediate */
 static glob_t temp_files;
 
+enum resume_state {
+    RESUME_NOT_DETECTED,
+    RESUME_DETECTED,
+};
+
 static void exit_if_first_tick(void) {
     if (first_tick) {
         err("Quitting due to failure during first run\n");
         exit(1);
     }
+}
+
+static int64_t timespec_diff_ns(const struct timespec *start,
+                                const struct timespec *end) {
+    int64_t sec_diff = end->tv_sec - start->tv_sec;
+    int64_t nsec_diff = end->tv_nsec - start->tv_nsec;
+
+    if (nsec_diff < 0) {
+        sec_diff -= 1;
+        nsec_diff += NANOSECONDS_IN_SEC;
+    }
+
+    return sec_diff * NANOSECONDS_IN_SEC + nsec_diff;
+}
+
+static enum resume_state detect_suspend(void) {
+    static struct timespec monotonic_prev = {0, 0};
+    static struct timespec boottime_prev = {0, 0};
+
+    struct timespec monotonic_now, boottime_now;
+    expect(clock_gettime(CLOCK_MONOTONIC, &monotonic_now) == 0);
+    expect(clock_gettime(CLOCK_BOOTTIME, &boottime_now) == 0);
+
+    if (monotonic_prev.tv_sec == 0 && monotonic_prev.tv_nsec == 0) {
+        monotonic_prev = monotonic_now;
+        boottime_prev = boottime_now;
+        return RESUME_NOT_DETECTED;
+    }
+
+    int64_t delta_monotonic = timespec_diff_ns(&monotonic_prev, &monotonic_now);
+    int64_t delta_boottime = timespec_diff_ns(&boottime_prev, &boottime_now);
+
+    monotonic_prev = monotonic_now;
+    boottime_prev = boottime_now;
+
+    if (delta_boottime > delta_monotonic + THRESHOLD_NS) {
+        return RESUME_DETECTED;
+    }
+
+    return RESUME_NOT_DETECTED;
 }
 
 static int glob_err_handler(const char *epath, int eerrno) {
@@ -206,7 +254,15 @@ static int set_fan_level(void) {
 static void maybe_ping_watchdog(void) {
     struct timespec now;
 
+    expect(current_rule);
     expect(clock_gettime(CLOCK_MONOTONIC, &now) == 0);
+
+    if (detect_suspend() == RESUME_DETECTED) {
+        // On resume, some models need a manual fan write again, or they will
+        // revert to "auto".
+        info("Clock jump detected, possible resume. Rewriting fan level\n");
+        write_fan_level(current_rule->tpacpi_level);
+    }
 
     if (now.tv_sec - last_watchdog_ping.tv_sec <
         (watchdog_secs - WATCHDOG_GRACE_PERIOD_SECS)) {
