@@ -160,8 +160,13 @@ static void write_watchdog_timeout(const time_t timeout) {
     write_fan("watchdog", timeout_s);
 }
 
-/* 1: set fan level, 0: didn't set fan level */
-static int set_fan_level(void) {
+enum set_fan_status {
+    FAN_LEVEL_NOT_SET,
+    FAN_LEVEL_SET,
+    FAN_LEVEL_INVALID,
+};
+
+static enum set_fan_status set_fan_level(void) {
     int max_temp = get_max_temp(), temp_penalty = 0;
     static unsigned int tick_penalty = tick_hysteresis;
 
@@ -171,7 +176,7 @@ static int set_fan_level(void) {
 
     if (max_temp == TEMP_INVALID) {
         write_fan_level("full-speed");
-        return 1;
+        return FAN_LEVEL_INVALID;
     }
 
     for (size_t i = 0; i < FAN_INVALID; i++) {
@@ -179,7 +184,8 @@ static int set_fan_level(void) {
 
         if (rule == current_rule) {
             if (tick_penalty) {
-                return 0; /* Must wait longer until able to move down levels */
+                // Must wait longer until able to move down levels
+                return FAN_LEVEL_NOT_SET;
             }
             temp_penalty = temp_hysteresis;
         }
@@ -192,14 +198,14 @@ static int set_fan_level(void) {
                 printf("[FAN] Temperature now %dC, fan set to %s\n", max_temp,
                        rule->name);
                 write_fan_level(rule->tpacpi_level);
-                return 1;
+                return FAN_LEVEL_SET;
             }
-            return 0;
+            return FAN_LEVEL_NOT_SET;
         }
     }
 
     err("No threshold matched?\n");
-    return 0;
+    return FAN_LEVEL_INVALID;
 }
 
 #define WATCHDOG_GRACE_PERIOD_SECS 2
@@ -323,8 +329,8 @@ int main(int argc, char *argv[]) {
     populate_temp_files();
 
     while (run) {
-        int set = set_fan_level();
-        if (!set) {
+        enum set_fan_status set = set_fan_level();
+        if (set != FAN_LEVEL_SET) {
             maybe_ping_watchdog();
         }
 
