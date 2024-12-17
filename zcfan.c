@@ -80,10 +80,9 @@ static int64_t timespec_diff_ns(const struct timespec *start,
 }
 
 static enum resume_state detect_suspend(void) {
-    static struct timespec monotonic_prev = {0, 0};
-    static struct timespec boottime_prev = {0, 0};
-
+    static struct timespec monotonic_prev, boottime_prev;
     struct timespec monotonic_now, boottime_now;
+
     expect(clock_gettime(CLOCK_MONOTONIC, &monotonic_now) == 0);
     expect(clock_gettime(CLOCK_BOOTTIME, &boottime_now) == 0);
 
@@ -99,11 +98,9 @@ static enum resume_state detect_suspend(void) {
     monotonic_prev = monotonic_now;
     boottime_prev = boottime_now;
 
-    if (delta_boottime > delta_monotonic + THRESHOLD_NS) {
-        return RESUME_DETECTED;
-    }
-
-    return RESUME_NOT_DETECTED;
+    return delta_boottime > delta_monotonic + THRESHOLD_NS
+               ? RESUME_DETECTED
+               : RESUME_NOT_DETECTED;
 }
 
 static int glob_err_handler(const char *epath, int eerrno) {
