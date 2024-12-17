@@ -14,8 +14,8 @@
 #define FAN_CONTROL_FILE "/proc/acpi/ibm/fan"
 #define TEMP_INVALID INT_MIN
 #define TEMP_MIN INT_MIN + 1
-#define NANOSECONDS_IN_SEC 1000000000L // 1 second in nanoseconds
-#define THRESHOLD_NS 200000000         // 0.2 seconds
+#define NS_IN_SEC 1000000000L  // 1 second in nanoseconds
+#define THRESHOLD_NS 200000000 // 0.2 seconds
 
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
@@ -75,22 +75,14 @@ static void exit_if_first_tick(void) {
 
 static int64_t timespec_diff_ns(const struct timespec *start,
                                 const struct timespec *end) {
-    int64_t sec_diff = end->tv_sec - start->tv_sec;
-    int64_t nsec_diff = end->tv_nsec - start->tv_nsec;
-
-    if (nsec_diff < 0) {
-        sec_diff -= 1;
-        nsec_diff += NANOSECONDS_IN_SEC;
-    }
-
-    return sec_diff * NANOSECONDS_IN_SEC + nsec_diff;
+    return ((int64_t)end->tv_sec - (int64_t)start->tv_sec) * NS_IN_SEC +
+           (end->tv_nsec - start->tv_nsec);
 }
 
 static enum resume_state detect_suspend(void) {
-    static struct timespec monotonic_prev = {0, 0};
-    static struct timespec boottime_prev = {0, 0};
-
+    static struct timespec monotonic_prev, boottime_prev;
     struct timespec monotonic_now, boottime_now;
+
     expect(clock_gettime(CLOCK_MONOTONIC, &monotonic_now) == 0);
     expect(clock_gettime(CLOCK_BOOTTIME, &boottime_now) == 0);
 
@@ -106,11 +98,9 @@ static enum resume_state detect_suspend(void) {
     monotonic_prev = monotonic_now;
     boottime_prev = boottime_now;
 
-    if (delta_boottime > delta_monotonic + THRESHOLD_NS) {
-        return RESUME_DETECTED;
-    }
-
-    return RESUME_NOT_DETECTED;
+    return delta_boottime > delta_monotonic + THRESHOLD_NS
+               ? RESUME_DETECTED
+               : RESUME_NOT_DETECTED;
 }
 
 static int glob_err_handler(const char *epath, int eerrno) {
