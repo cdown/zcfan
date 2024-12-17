@@ -14,8 +14,8 @@
 #define FAN_CONTROL_FILE "/proc/acpi/ibm/fan"
 #define TEMP_INVALID INT_MIN
 #define TEMP_MIN INT_MIN + 1
-#define NANOSECONDS_IN_SEC 1000000000L // 1 second in nanoseconds
-#define THRESHOLD_NS 200000000         // 0.2 seconds
+#define NS_IN_SEC 1000000000L  // 1 second in nanoseconds
+#define THRESHOLD_NS 200000000 // 0.2 seconds
 
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
@@ -75,15 +75,8 @@ static void exit_if_first_tick(void) {
 
 static int64_t timespec_diff_ns(const struct timespec *start,
                                 const struct timespec *end) {
-    int64_t sec_diff = end->tv_sec - start->tv_sec;
-    int64_t nsec_diff = end->tv_nsec - start->tv_nsec;
-
-    if (nsec_diff < 0) {
-        sec_diff -= 1;
-        nsec_diff += NANOSECONDS_IN_SEC;
-    }
-
-    return sec_diff * NANOSECONDS_IN_SEC + nsec_diff;
+    return ((int64_t)end->tv_sec - (int64_t)start->tv_sec) * NS_IN_SEC +
+           (end->tv_nsec - start->tv_nsec);
 }
 
 static enum resume_state detect_suspend(void) {
