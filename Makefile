@@ -30,7 +30,7 @@ $(SERVICE): $(SERVICE_TEMPLATE)
 # Noisy clang build that's expected to fail, but can be useful to find corner
 # cases.
 clang-everything: CC=clang
-clang-everything: CFLAGS+=-Weverything -Wno-disabled-macro-expansion -Wno-padded -Wno-covered-switch-default -Wno-gnu-zero-variadic-macro-arguments -Wno-declaration-after-statement
+clang-everything: CFLAGS+=-Weverything -Wno-disabled-macro-expansion -Wno-padded -Wno-covered-switch-default -Wno-gnu-zero-variadic-macro-arguments -Wno-declaration-after-statement -Wno-unsafe-buffer-usage
 clang-everything: all
 
 sanitisers: CFLAGS+=-fsanitize=address -fsanitize=undefined -fanalyzer
