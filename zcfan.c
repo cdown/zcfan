@@ -51,20 +51,17 @@ static struct Rule rules[] = {
     [FAN_OFF] = {"0", TEMP_MIN, "off"},
 };
 
-static struct timespec last_watchdog_ping = {0, 0};
+static struct timespec last_watchdog_ping = {0};
 static time_t watchdog_secs = DEFAULT_WATCHDOG_SECS;
 static int temp_hysteresis = 10;
 static const unsigned int tick_hysteresis = 3;
 static char output_buf[512];
 static const struct Rule *current_rule = NULL;
 static volatile sig_atomic_t run = 1;
-static int first_tick = 1; /* Stop running if errors are immediate */
+static int first_tick = 1;
 static glob_t temp_files;
 
-enum resume_state {
-    RESUME_NOT_DETECTED,
-    RESUME_DETECTED,
-};
+enum resume_state { RESUME_NOT_DETECTED, RESUME_DETECTED };
 
 static void exit_if_first_tick(void) {
     if (first_tick) {
@@ -75,32 +72,26 @@ static void exit_if_first_tick(void) {
 
 static int64_t timespec_diff_ns(const struct timespec *start,
                                 const struct timespec *end) {
-    return ((int64_t)end->tv_sec - (int64_t)start->tv_sec) * NS_IN_SEC +
+    return ((int64_t)end->tv_sec - start->tv_sec) * NS_IN_SEC +
            (end->tv_nsec - start->tv_nsec);
 }
 
 static enum resume_state detect_suspend(void) {
-    static struct timespec monotonic_prev, boottime_prev;
-    struct timespec monotonic_now, boottime_now;
-
-    expect(clock_gettime(CLOCK_MONOTONIC, &monotonic_now) == 0);
-    expect(clock_gettime(CLOCK_BOOTTIME, &boottime_now) == 0);
-
-    if (monotonic_prev.tv_sec == 0 && monotonic_prev.tv_nsec == 0) {
-        monotonic_prev = monotonic_now;
-        boottime_prev = boottime_now;
+    static struct timespec mono_prev = {0}, boot_prev = {0};
+    struct timespec mono_now, boot_now;
+    expect(clock_gettime(CLOCK_MONOTONIC, &mono_now) == 0);
+    expect(clock_gettime(CLOCK_BOOTTIME, &boot_now) == 0);
+    if (mono_prev.tv_sec == 0 && mono_prev.tv_nsec == 0) {
+        mono_prev = mono_now;
+        boot_prev = boot_now;
         return RESUME_NOT_DETECTED;
     }
-
-    int64_t delta_monotonic = timespec_diff_ns(&monotonic_prev, &monotonic_now);
-    int64_t delta_boottime = timespec_diff_ns(&boottime_prev, &boottime_now);
-
-    monotonic_prev = monotonic_now;
-    boottime_prev = boottime_now;
-
-    return delta_boottime > delta_monotonic + THRESHOLD_NS
-               ? RESUME_DETECTED
-               : RESUME_NOT_DETECTED;
+    int64_t delta_mono = timespec_diff_ns(&mono_prev, &mono_now);
+    int64_t delta_boot = timespec_diff_ns(&boot_prev, &boot_now);
+    mono_prev = mono_now;
+    boot_prev = boot_now;
+    return (delta_boot > delta_mono + THRESHOLD_NS) ? RESUME_DETECTED
+                                                    : RESUME_NOT_DETECTED;
 }
 
 static int glob_err_handler(const char *epath, int eerrno) {
@@ -120,71 +111,49 @@ static void populate_temp_files(void) {
 
 static int full_speed_supported(void) {
     FILE *f = fopen(FAN_CONTROL_FILE, "re");
-    char line[256]; // If exceeded, we'll just read again
-    int found = 0;
-
     expect(f);
-
-    while (fgets(line, sizeof(line), f) != NULL) {
-        if (strstr(line, "full-speed") != NULL) {
-            found = 1;
-            break;
-        }
-    }
-
+    char line[256];
+    int supported = 0;
+    while (fgets(line, sizeof(line), f))
+        if (strstr(line, "full-speed"))
+            supported = 1;
     fclose(f);
-    return found;
+    return supported;
 }
 
 static int read_temp_file(const char *filename) {
     FILE *f = fopen(filename, "re");
-    int val;
-
-    if (!f) {
+    if (!f)
         return TEMP_INVALID;
-    }
-
-    if (fscanf(f, "%d", &val) != 1) {
+    int val;
+    if (fscanf(f, "%d", &val) != 1)
         val = TEMP_INVALID;
-    }
-
     fclose(f);
     return val;
 }
 
 static int get_max_temp(void) {
     int max_temp = TEMP_INVALID;
-
-    for (size_t i = 0; i < temp_files.gl_pathc; i++) {
-        int temp = read_temp_file(temp_files.gl_pathv[i]);
-        max_temp = max(max_temp, temp);
-    }
-
+    for (size_t i = 0; i < temp_files.gl_pathc; i++)
+        max_temp = max(max_temp, read_temp_file(temp_files.gl_pathv[i]));
     if (max_temp == TEMP_INVALID) {
         err("Couldn't find any valid temperature\n");
         exit_if_first_tick();
-        return TEMP_INVALID;
     }
-
     return MILLIC_TO_C(max_temp);
 }
 
 #define write_fan_level(level) write_fan("level", level)
-
 static int write_fan(const char *command, const char *value) {
     FILE *f = fopen(FAN_CONTROL_FILE, "we");
-    int ret;
-
     if (!f) {
         err("%s: fopen: %s%s\n", FAN_CONTROL_FILE, strerror(errno),
             errno == ENOENT ? " (is thinkpad_acpi loaded?)" : "");
         exit_if_first_tick();
         return -errno;
     }
-
-    expect(setvbuf(f, NULL, _IONBF, 0) == 0); /* Make fprintf see errors */
-    ret = fprintf(f, "%s %s", command, value);
-    if (ret < 0) {
+    expect(setvbuf(f, NULL, _IONBF, 0) == 0);
+    if (fprintf(f, "%s %s", command, value) < 0) {
         err("%s: write: %s%s\n", FAN_CONTROL_FILE, strerror(errno),
             errno == EINVAL ? " (did you enable fan_control=1?)" : "");
         exit_if_first_tick();
@@ -197,45 +166,29 @@ static int write_fan(const char *command, const char *value) {
 }
 
 static void write_watchdog_timeout(const time_t timeout) {
-    char timeout_s[sizeof(S_DEFAULT_WATCHDOG_SECS)]; /* max timeout value */
-    int ret =
-        snprintf(timeout_s, sizeof(timeout_s), "%" PRIuMAX, (uintmax_t)timeout);
-    expect(ret >= 0 && (size_t)ret < sizeof(timeout_s));
-    write_fan("watchdog", timeout_s);
+    char buf[sizeof(S_DEFAULT_WATCHDOG_SECS)];
+    int ret = snprintf(buf, sizeof(buf), "%" PRIuMAX, (uintmax_t)timeout);
+    expect(ret >= 0 && (size_t)ret < sizeof(buf));
+    write_fan("watchdog", buf);
 }
 
-enum set_fan_status {
-    FAN_LEVEL_NOT_SET,
-    FAN_LEVEL_SET,
-    FAN_LEVEL_INVALID,
-};
+enum set_fan_status { FAN_LEVEL_NOT_SET, FAN_LEVEL_SET, FAN_LEVEL_INVALID };
 
 static enum set_fan_status set_fan_level(void) {
-    int max_temp = get_max_temp(), temp_penalty = 0;
+    int max_temp = get_max_temp();
     static unsigned int tick_penalty = tick_hysteresis;
-
-    if (tick_penalty > 0) {
+    if (tick_penalty)
         tick_penalty--;
-    }
-
     if (max_temp == TEMP_INVALID) {
         write_fan_level("full-speed");
         return FAN_LEVEL_INVALID;
     }
-
+    int penalty = current_rule ? temp_hysteresis : 0;
     for (size_t i = 0; i < FAN_INVALID; i++) {
         const struct Rule *rule = rules + i;
-
-        if (rule == current_rule) {
-            if (tick_penalty) {
-                // Must wait longer until able to move down levels
-                return FAN_LEVEL_NOT_SET;
-            }
-            temp_penalty = temp_hysteresis;
-        }
-
-        if (rule->threshold < temp_penalty ||
-            (rule->threshold - temp_penalty) < max_temp) {
+        if (rule == current_rule && tick_penalty)
+            return FAN_LEVEL_NOT_SET;
+        if (max_temp > rule->threshold - penalty) {
             if (rule != current_rule) {
                 current_rule = rule;
                 tick_penalty = tick_hysteresis;
@@ -333,15 +286,13 @@ static void get_config(void) {
             CONFIG_PATH, WATCHDOG_GRACE_PERIOD_SECS, DEFAULT_WATCHDOG_SECS);
         exit(1);
     }
-
     fclose(f);
 }
 
 static void print_thresholds(void) {
-    for (size_t i = 0; i < FAN_OFF; i++) {
-        const struct Rule *rule = rules + i;
-        printf("[CFG] At %dC fan is set to %s\n", rule->threshold, rule->name);
-    }
+    for (size_t i = 0; i < FAN_OFF; i++)
+        printf("[CFG] At %dC fan is set to %s\n", rules[i].threshold,
+               rules[i].name);
 }
 
 static void stop(int sig) {
@@ -350,49 +301,34 @@ static void stop(int sig) {
 }
 
 int main(int argc, char *argv[]) {
-    const struct sigaction sa_exit = {
-        .sa_handler = stop,
-    };
-
     (void)argv;
-
+    const struct sigaction sa_exit = {.sa_handler = stop};
     if (argc != 1) {
-        printf("zcfan: Zero-configuration ThinkPad fan daemon.\n\n");
-        printf("  [any argument]     Show this help\n\n");
-        printf("See the zcfan(1) man page for details.\n");
+        printf("zcfan: Zero-configuration ThinkPad fan daemon.\n\n"
+               "  [any argument]     Show this help\n\n"
+               "See the zcfan(1) man page for details.\n");
         return 0;
     }
-
     get_config();
     print_thresholds();
     expect(sigaction(SIGTERM, &sa_exit, NULL) == 0);
     expect(sigaction(SIGINT, &sa_exit, NULL) == 0);
     expect(setvbuf(stdout, output_buf, _IOLBF, sizeof(output_buf)) == 0);
-
     if (!full_speed_supported()) {
         err("level \"full-speed\" not supported, using level 7\n");
         strncpy(rules[FAN_MAX].tpacpi_level, "7", CONFIG_MAX_STRLEN);
         rules[FAN_MAX].tpacpi_level[CONFIG_MAX_STRLEN] = '\0';
     }
-
     write_watchdog_timeout(watchdog_secs);
     populate_temp_files();
-
     while (run) {
-        enum set_fan_status set = set_fan_level();
-        if (set != FAN_LEVEL_SET) {
+        if (set_fan_level() != FAN_LEVEL_SET)
             maybe_ping_watchdog();
-        }
-
-        if (run) {
-            sleep(1);
-            first_tick = 0;
-        }
+        sleep(1);
+        first_tick = 0;
     }
-
     globfree(&temp_files);
     printf("[FAN] Quit requested, reenabling thinkpad_acpi fan control\n");
-    if (write_fan_level("auto") == 0) {
+    if (write_fan_level("auto") == 0)
         write_watchdog_timeout(0);
-    }
 }
