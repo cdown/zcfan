@@ -293,9 +293,7 @@ static void maybe_ping_watchdog(void) {
     } while (0)
 
 static void get_config(void) {
-    FILE *f;
-
-    f = fopen(CONFIG_PATH, "re");
+    FILE *f = fopen(CONFIG_PATH, "re");
     if (!f) {
         if (errno != ENOENT) {
             err("%s: fopen: %s\n", CONFIG_PATH, strerror(errno));
