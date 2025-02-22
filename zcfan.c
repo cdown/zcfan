@@ -109,7 +109,13 @@ static int glob_err_handler(const char *epath, int eerrno) {
 }
 
 static void populate_temp_files(void) {
-    expect(glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files) == 0);
+    int ret = glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files);
+    if (ret == GLOB_NOMATCH) {
+        err("glob: No temperature sensor files matching pattern '%s' were found.\n",
+            TEMP_FILES_GLOB);
+        exit_if_first_tick();
+    }
+    expect(ret == 0);
 }
 
 static int full_speed_supported(void) {
