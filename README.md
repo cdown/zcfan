@@ -16,7 +16,8 @@ Zero-configuration fan control daemon for ThinkPads.
 
 ## Usage
 
-zcfan has the following default fan states:
+zcfan reads all temperature sensors present on the system. By default, it has
+the following default fan states:
 
 | Config name | thinkpad_acpi fan level           | Default trip temperature (C) |
 |-------------|-----------------------------------|------------------------------|
@@ -41,6 +42,25 @@ updated trip temperatures in degrees celsius and/or fan levels. As an example:
     max_level full-speed
     med_level 4
     low_level 1
+
+### Ignoring sensors
+
+If you have a faulty sensor, or a sensor that you otherwise want to ignore, you
+can ignore it using the `ignore_sensor` directive in the config file. For
+example:
+
+    % grep . /sys/class/hwmon/*/name
+    /sys/class/hwmon/hwmon0/name:AC
+    /sys/class/hwmon/hwmon1/name:acpitz
+    /sys/class/hwmon/hwmon2/name:BAT0
+    /sys/class/hwmon/hwmon3/name:nvme
+    /sys/class/hwmon/hwmon4/name:coretemp
+
+If you wanted to ignore the nvme and BAT0 monitors, you'd add to your config
+file:
+
+    ignore_sensor nvme
+    ignore_sensor BAT0
 
 ### Hysteresis
 
