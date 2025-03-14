@@ -1,8 +1,10 @@
+#include <dirent.h>
 #include <errno.h>
-#include <glob.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,7 +12,6 @@
 #include <unistd.h>
 
 #define MILLIC_TO_C(n) (n / 1000)
-#define TEMP_FILES_GLOB "/sys/class/hwmon/hwmon*/temp*_input"
 #define FAN_CONTROL_FILE "/proc/acpi/ibm/fan"
 #define TEMP_INVALID INT_MIN
 #define TEMP_MIN INT_MIN + 1
@@ -37,6 +38,16 @@
 #define CONFIG_MAX_STRLEN 15
 #define S_CONFIG_MAX_STRLEN STR(CONFIG_MAX_STRLEN)
 
+#define MAX_IGNORED_SENSORS 1024
+#define SENSOR_NAME_MAX 256
+static char ignored_sensors_arr[MAX_IGNORED_SENSORS][SENSOR_NAME_MAX];
+static size_t num_to_ignore_sensors = 0;
+static size_t num_ignored_sensors = 0;
+
+#define MAX_SENSOR_FDS 4096
+static int sensor_fds[MAX_SENSOR_FDS];
+static size_t num_sensor_fds = 0;
+
 /* Must be highest to lowest temp */
 enum FanLevel { FAN_MAX, FAN_MED, FAN_LOW, FAN_OFF, FAN_INVALID };
 struct Rule {
@@ -59,7 +70,6 @@ static char output_buf[512];
 static const struct Rule *current_rule = NULL;
 static volatile sig_atomic_t run = 1;
 static int first_tick = 1; /* Stop running if errors are immediate */
-static glob_t temp_files;
 
 enum resume_state {
     RESUME_NOT_DETECTED,
@@ -103,13 +113,35 @@ static enum resume_state detect_suspend(void) {
                : RESUME_NOT_DETECTED;
 }
 
-static int glob_err_handler(const char *epath, int eerrno) {
-    err("glob: %s: %s\n", epath, strerror(eerrno));
-    return 0;
+static void fscanf_ignore_sensor(FILE *f, long pos) {
+    char sensor_name[SENSOR_NAME_MAX];
+    int ret = fscanf(f, "ignore_sensor %255s ", sensor_name);
+    if (ret == 1) {
+        expect(num_to_ignore_sensors < MAX_IGNORED_SENSORS);
+        snprintf(ignored_sensors_arr[num_to_ignore_sensors], SENSOR_NAME_MAX,
+                 "%s", sensor_name);
+        num_to_ignore_sensors++;
+    } else {
+        expect(fseek(f, pos, SEEK_SET) == 0);
+    }
 }
 
-static void populate_temp_files(void) {
-    expect(glob(TEMP_FILES_GLOB, 0, glob_err_handler, &temp_files) == 0);
+static bool is_sensor_name_ignored(DIR *sensor_dir) {
+    int name_fd = openat(dirfd(sensor_dir), "name", O_RDONLY);
+    if (name_fd < 0)
+        return false;
+    char sensor_name[SENSOR_NAME_MAX];
+    ssize_t name_len = read(name_fd, sensor_name, SENSOR_NAME_MAX - 1);
+    close(name_fd);
+    if (name_len <= 0)
+        return false;
+    sensor_name[name_len] = '\0';
+    sensor_name[strcspn(sensor_name, "\n")] = '\0';
+    for (size_t i = 0; i < num_to_ignore_sensors; i++) {
+        if (strcmp(sensor_name, ignored_sensors_arr[i]) == 0)
+            return true;
+    }
+    return false;
 }
 
 static int full_speed_supported(void) {
@@ -130,27 +162,71 @@ static int full_speed_supported(void) {
     return found;
 }
 
-static int read_temp_file(const char *filename) {
-    FILE *f = fopen(filename, "re");
-    int val;
+static void add_sensor_fds(DIR *sensor_dir) {
+    struct dirent *sensor_file;
+    while ((sensor_file = readdir(sensor_dir)) != NULL) {
+        if (strncmp(sensor_file->d_name, "temp", 4) != 0 ||
+            !strstr(sensor_file->d_name, "_input"))
+            continue;
+        expect(num_sensor_fds < MAX_SENSOR_FDS);
+        int temp_fd = openat(dirfd(sensor_dir), sensor_file->d_name, O_RDONLY);
+        if (temp_fd < 0)
+            continue;
+        sensor_fds[num_sensor_fds++] = temp_fd;
+    }
+}
 
-    if (!f) {
+static void populate_sensor_fds(void) {
+    int hwmon_fd = open("/sys/class/hwmon", O_RDONLY | O_DIRECTORY);
+    if (hwmon_fd < 0) {
+        err("open(/sys/class/hwmon): %s\n", strerror(errno));
+        exit_if_first_tick();
+    }
+    DIR *hwmon_dir = fdopendir(hwmon_fd);
+    if (!hwmon_dir) {
+        err("fdopendir(/sys/class/hwmon): %s\n", strerror(errno));
+        exit_if_first_tick();
+    }
+
+    struct dirent *hwmon_entry;
+    while ((hwmon_entry = readdir(hwmon_dir)) != NULL) {
+        int sensor_dir_fd = openat(dirfd(hwmon_dir), hwmon_entry->d_name,
+                                   O_RDONLY | O_DIRECTORY);
+        if (sensor_dir_fd < 0)
+            continue;
+        DIR *sensor_dir = fdopendir(sensor_dir_fd);
+        if (!sensor_dir) {
+            close(sensor_dir_fd);
+            continue;
+        }
+        if (is_sensor_name_ignored(sensor_dir)) {
+            num_ignored_sensors++;
+            closedir(sensor_dir);
+            continue;
+        }
+        add_sensor_fds(sensor_dir);
+        closedir(sensor_dir);
+    }
+    closedir(hwmon_dir);
+}
+
+/* The kernel supports reading new values without reopening the FD */
+static int read_temp_fd(int fd) {
+    char buf[32];
+    if (lseek(fd, 0, SEEK_SET) < 0)
         return TEMP_INVALID;
-    }
-
-    if (fscanf(f, "%d", &val) != 1) {
-        val = TEMP_INVALID;
-    }
-
-    fclose(f);
-    return val;
+    ssize_t n = read(fd, buf, sizeof(buf) - 1);
+    if (n <= 0)
+        return TEMP_INVALID;
+    buf[n] = '\0';
+    int val;
+    return (sscanf(buf, "%d", &val) == 1) ? val : TEMP_INVALID;
 }
 
 static int get_max_temp(void) {
     int max_temp = TEMP_INVALID;
-
-    for (size_t i = 0; i < temp_files.gl_pathc; i++) {
-        int temp = read_temp_file(temp_files.gl_pathv[i]);
+    for (size_t i = 0; i < num_sensor_fds; i++) {
+        int temp = read_temp_fd(sensor_fds[i]);
         max_temp = max(max_temp, temp);
     }
 
@@ -316,6 +392,7 @@ static void get_config(void) {
         fscanf_str_for_key(f, pos, "max_level", rules[FAN_MAX].tpacpi_level);
         fscanf_str_for_key(f, pos, "med_level", rules[FAN_MED].tpacpi_level);
         fscanf_str_for_key(f, pos, "low_level", rules[FAN_LOW].tpacpi_level);
+        fscanf_ignore_sensor(f, pos);
         if (ftell(f) == pos) {
             while ((ch = fgetc(f)) != EOF && ch != '\n') {}
         }
@@ -338,6 +415,8 @@ static void print_thresholds(void) {
         const struct Rule *rule = rules + i;
         printf("[CFG] At %dC fan is set to %s\n", rule->threshold, rule->name);
     }
+    printf("[CFG] Ignored %zu present sensors based on config\n",
+           num_ignored_sensors);
 }
 
 static void stop(int sig) {
@@ -360,7 +439,6 @@ int main(int argc, char *argv[]) {
     }
 
     get_config();
-    print_thresholds();
     expect(sigaction(SIGTERM, &sa_exit, NULL) == 0);
     expect(sigaction(SIGINT, &sa_exit, NULL) == 0);
     expect(setvbuf(stdout, output_buf, _IOLBF, sizeof(output_buf)) == 0);
@@ -372,7 +450,8 @@ int main(int argc, char *argv[]) {
     }
 
     write_watchdog_timeout(watchdog_secs);
-    populate_temp_files();
+    populate_sensor_fds();
+    print_thresholds();
 
     while (run) {
         enum set_fan_status set = set_fan_level();
@@ -386,9 +465,11 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    globfree(&temp_files);
     printf("[FAN] Quit requested, reenabling thinkpad_acpi fan control\n");
     if (write_fan_level("auto") == 0) {
         write_watchdog_timeout(0);
+    }
+    for (size_t i = 0; i < num_sensor_fds; i++) {
+        close(sensor_fds[i]);
     }
 }
