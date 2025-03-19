@@ -241,28 +241,32 @@ static int get_max_temp(void) {
 
 #define write_fan_level(level) write_fan("level", level)
 
-static int write_fan(const char *command, const char *value) {
-    FILE *f = fopen(FAN_CONTROL_FILE, "we");
-    int ret;
+static FILE *fan_control_fp;
 
-    if (!f) {
-        err("%s: fopen: %s%s\n", FAN_CONTROL_FILE, strerror(errno),
-            errno == ENOENT ? " (is thinkpad_acpi loaded?)" : "");
-        exit_if_first_tick();
-        return -errno;
+static int write_fan(const char *command, const char *value) {
+    if (!fan_control_fp) {
+        fan_control_fp = fopen(FAN_CONTROL_FILE, "we");
+        if (!fan_control_fp) {
+            err("%s: fopen: %s%s\n", FAN_CONTROL_FILE, strerror(errno),
+                errno == ENOENT ? " (is thinkpad_acpi loaded?)" : "");
+            exit_if_first_tick();
+            return -errno;
+        }
+        /* Make fprintf see errors */
+        expect(setvbuf(fan_control_fp, NULL, _IONBF, 0) == 0);
     }
 
-    expect(setvbuf(f, NULL, _IONBF, 0) == 0); /* Make fprintf see errors */
-    ret = fprintf(f, "%s %s", command, value);
+    int ret = fprintf(fan_control_fp, "%s %s", command, value);
     if (ret < 0) {
         err("%s: write: %s%s\n", FAN_CONTROL_FILE, strerror(errno),
             errno == EINVAL ? " (did you enable fan_control=1?)" : "");
         exit_if_first_tick();
-        fclose(f);
+        fclose(fan_control_fp);
+        fan_control_fp = NULL;
         return -errno;
     }
     expect(clock_gettime(CLOCK_MONOTONIC, &last_watchdog_ping) == 0);
-    fclose(f);
+    fflush(fan_control_fp);
     return 0;
 }
 
@@ -471,5 +475,8 @@ int main(int argc, char *argv[]) {
     }
     for (size_t i = 0; i < num_sensor_fds; i++) {
         close(sensor_fds[i]);
+    }
+    if (fan_control_fp) {
+        fclose(fan_control_fp);
     }
 }
