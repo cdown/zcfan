@@ -1,0 +1,12 @@
+[Unit]
+Description=Notify zcfan of imminent sleep
+Before=sleep.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/pkill -x -PWR zcfan
+# Executing the signal handler races with sleep, so delay a bit
+ExecStart=sleep 1
+
+[Install]
+WantedBy=sleep.target

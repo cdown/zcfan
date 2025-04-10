@@ -58,6 +58,8 @@ static const unsigned int tick_hysteresis = 3;
 static char output_buf[512];
 static const struct Rule *current_rule = NULL;
 static volatile sig_atomic_t run = 1;
+static volatile sig_atomic_t pending_sleep = 0;
+static volatile sig_atomic_t pending_resume = 0;
 static int first_tick = 1; /* Stop running if errors are immediate */
 static glob_t temp_files;
 
@@ -345,6 +347,16 @@ static void stop(int sig) {
     run = 0;
 }
 
+static void handle_sigpwr(int sig) {
+    (void)sig;
+    pending_sleep = 1;
+}
+
+static void handle_sigusr2(int sig) {
+    (void)sig;
+    pending_resume = 1;
+}
+
 int main(int argc, char *argv[]) {
     const struct sigaction sa_exit = {
         .sa_handler = stop,
@@ -363,6 +375,15 @@ int main(int argc, char *argv[]) {
     print_thresholds();
     expect(sigaction(SIGTERM, &sa_exit, NULL) == 0);
     expect(sigaction(SIGINT, &sa_exit, NULL) == 0);
+    expect(
+        sigaction(SIGPWR,
+                  &(const struct sigaction){.sa_handler = handle_sigpwr},
+                  NULL) == 0);
+    expect(
+        sigaction(SIGUSR2,
+                  &(const struct sigaction){.sa_handler = handle_sigusr2},
+                  NULL) == 0);
+
     expect(setvbuf(stdout, output_buf, _IOLBF, sizeof(output_buf)) == 0);
 
     if (!full_speed_supported()) {
@@ -374,16 +395,35 @@ int main(int argc, char *argv[]) {
     write_watchdog_timeout(watchdog_secs);
     populate_temp_files();
 
-    while (run) {
-        enum set_fan_status set = set_fan_level();
-        if (set != FAN_LEVEL_SET) {
-            maybe_ping_watchdog();
-        }
+    int fan_control_enabled = 1;
 
+    while (run) {
+        if (fan_control_enabled) {
+            enum set_fan_status set = set_fan_level();
+            if (set != FAN_LEVEL_SET) {
+                maybe_ping_watchdog();
+            }
+        }
         if (run) {
             sleep(1);
             first_tick = 0;
         }
+        if (pending_sleep) {
+            pending_sleep = 0;
+            info("Fan control disabled for sleep\n");
+            if (write_fan_level("auto") == 0)
+                write_watchdog_timeout(0);
+            fan_control_enabled = 0;
+        }
+        if (pending_resume) {
+            pending_resume = 0;
+            info("Fan control enabled for resume\n");
+            fan_control_enabled = 1;
+            expect(current_rule);
+            write_fan_level(current_rule->tpacpi_level);
+            write_watchdog_timeout(watchdog_secs);
+        }
+
     }
 
     globfree(&temp_files);

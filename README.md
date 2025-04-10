@@ -69,6 +69,10 @@ Run `make`.
     - At runtime: `rmmod thinkpad_acpi && modprobe thinkpad_acpi fan_control=1`
     - By default: `echo options thinkpad_acpi fan_control=1 > /etc/modprobe.d/99-fancontrol.conf`
 3. Run `zcfan` as root (or use the `zcfan` systemd service provided)
+4. If you run a laptop which keeps the fan running during suspend, you will also
+   want to send `SIGPWR` before sleep and `SIGUSR2` before wakeup to avoid
+   that. For systemd users, enable the `zcfan-sleep.service` and
+   `zcfan-resume.service` units to do that automatically.
 
 ## Disclaimer
 
