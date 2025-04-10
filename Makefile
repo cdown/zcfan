@@ -48,6 +48,8 @@ install: all
 	mkdir -p $(DESTDIR)$(bindir)/
 	$(INSTALL) -pt $(DESTDIR)$(bindir)/ $(EXECUTABLES)
 	$(INSTALL) -Dp -m 644 $(SERVICE) $(DESTDIR)$(prefix)/lib/systemd/system/$(SERVICE)
+	$(INSTALL) -Dp -m 644 zcfan-sleep.service $(DESTDIR)$(prefix)/lib/systemd/system/zcfan-sleep.service
+	$(INSTALL) -Dp -m 644 zcfan-resume.service $(DESTDIR)$(prefix)/lib/systemd/system/zcfan-resume.service
 	$(INSTALL) -Dp -m 644 zcfan.1 $(DESTDIR)$(mandir)/man1/zcfan.1
 
 lint:
