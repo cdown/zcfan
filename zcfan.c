@@ -83,7 +83,7 @@ static enum resume_state detect_suspend(void) {
     static struct timespec monotonic_prev, boottime_prev;
     struct timespec monotonic_now, boottime_now;
 
-    expect(clock_gettime(CLOCK_MONOTONIC, &monotonic_now) == 0);
+    expect(clock_gettime(CLOCK_MONOTONIC_COARSE, &monotonic_now) == 0);
     expect(clock_gettime(CLOCK_BOOTTIME, &boottime_now) == 0);
 
     if (monotonic_prev.tv_sec == 0 && monotonic_prev.tv_nsec == 0) {
@@ -185,7 +185,7 @@ static int write_fan(const char *command, const char *value) {
         fclose(f);
         return -errno;
     }
-    expect(clock_gettime(CLOCK_MONOTONIC, &last_watchdog_ping) == 0);
+    expect(clock_gettime(CLOCK_MONOTONIC_COARSE, &last_watchdog_ping) == 0);
     fclose(f);
     return 0;
 }
@@ -251,7 +251,7 @@ static void maybe_ping_watchdog(void) {
     struct timespec now;
 
     expect(current_rule);
-    expect(clock_gettime(CLOCK_MONOTONIC, &now) == 0);
+    expect(clock_gettime(CLOCK_MONOTONIC_COARSE, &now) == 0);
 
     if (detect_suspend() == RESUME_DETECTED) {
         // On resume, some models need a manual fan write again, or they will
