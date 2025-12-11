@@ -63,6 +63,9 @@ static volatile sig_atomic_t pending_resume = 0;
 static int first_tick = 1; /* Stop running if errors are immediate */
 static glob_t temp_files;
 
+static unsigned int up_delay_counter = 0;
+static const unsigned int up_delay_ticks = 3;   // 3 秒
+
 enum resume_state {
     RESUME_NOT_DETECTED,
     RESUME_DETECTED,
@@ -210,6 +213,10 @@ static enum set_fan_status set_fan_level(void) {
     int max_temp = get_max_temp(), temp_penalty = 0;
     static unsigned int tick_penalty = tick_hysteresis;
 
+    // newly added for fan-up stabilization
+    static unsigned int up_delay_counter = 0;
+    static const unsigned int up_delay_ticks = 3; // wait 3 seconds before ramp-up
+
     if (tick_penalty > 0) {
         tick_penalty--;
     }
@@ -223,20 +230,41 @@ static enum set_fan_status set_fan_level(void) {
         const struct Rule *rule = rules + i;
 
         if (rule == current_rule) {
-            if (tick_penalty) {
-                // Must wait longer until able to move down levels
-                return FAN_LEVEL_NOT_SET;
+            if (!tick_penalty) {
+                temp_penalty = temp_hysteresis;
             }
-            temp_penalty = temp_hysteresis;
         }
 
+        // -------- FAN-UP with Delay --------
+        if (rule < current_rule) { // rule index smaller means higher fan level
+            if ((rule->threshold - temp_penalty) < max_temp) {
+                up_delay_counter++;
+                if (up_delay_counter < up_delay_ticks) {
+                    return FAN_LEVEL_NOT_SET; // not ready yet
+                }
+                // OK, promote
+                up_delay_counter = 0;
+                current_rule = rule;
+                tick_penalty = tick_hysteresis;
+                printf("[FAN] Temperature %dC, fan UP to %s\n",
+                       max_temp, rule->name);
+                write_fan_level(rule->tpacpi_level);
+                return FAN_LEVEL_SET;
+            } else {
+                up_delay_counter = 0;
+            }
+            continue;
+        }
+
+        // -------- FAN-DOWN (no delay) --------
         if (rule->threshold < temp_penalty ||
             (rule->threshold - temp_penalty) < max_temp) {
+
             if (rule != current_rule) {
                 current_rule = rule;
                 tick_penalty = tick_hysteresis;
-                printf("[FAN] Temperature now %dC, fan set to %s\n", max_temp,
-                       rule->name);
+                printf("[FAN] Temperature now %dC, fan set to %s\n",
+                       max_temp, rule->name);
                 write_fan_level(rule->tpacpi_level);
                 return FAN_LEVEL_SET;
             }
@@ -247,6 +275,7 @@ static enum set_fan_status set_fan_level(void) {
     err("No threshold matched?\n");
     return FAN_LEVEL_INVALID;
 }
+
 
 #define WATCHDOG_GRACE_PERIOD_SECS 2
 static void maybe_ping_watchdog(void) {
