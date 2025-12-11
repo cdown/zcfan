@@ -63,9 +63,6 @@ static volatile sig_atomic_t pending_resume = 0;
 static int first_tick = 1; /* Stop running if errors are immediate */
 static glob_t temp_files;
 
-static unsigned int up_delay_counter = 0;
-static const unsigned int up_delay_ticks = 3;   // 3 秒
-
 enum resume_state {
     RESUME_NOT_DETECTED,
     RESUME_DETECTED,
