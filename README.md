@@ -61,6 +61,10 @@ file:
 
     ignore_sensor nvme
     ignore_sensor BAT0
+### Add delay before the fan ramps up
+Increase the up-delay to filter 3–5s spikes: add this to /etc/zcfan.conf:
+
+    up_delay_ticks 6
 
 ### Hysteresis
 
