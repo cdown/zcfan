@@ -66,6 +66,10 @@ static struct timespec last_watchdog_ping = {0, 0};
 static time_t watchdog_secs = DEFAULT_WATCHDOG_SECS;
 static int temp_hysteresis = 10;
 static const unsigned int tick_hysteresis = 3;
+/* Number of consecutive seconds a higher fan level must persist before
+ * actually ramping the fan up. Make configurable via /etc/zcfan.conf
+ */
+static unsigned int up_delay_ticks = 3;
 static char output_buf[512];
 static const struct Rule *current_rule = NULL;
 static volatile sig_atomic_t run = 1;
@@ -286,9 +290,8 @@ static enum set_fan_status set_fan_level(void) {
     int max_temp = get_max_temp(), temp_penalty = 0;
     static unsigned int tick_penalty = tick_hysteresis;
 
-    // newly added for fan-up stabilization
+    // fan-up stabilization
     static unsigned int up_delay_counter = 0;
-    static const unsigned int up_delay_ticks = 3; // wait 3 seconds before ramp-up
 
     if (tick_penalty > 0) {
         tick_penalty--;
@@ -313,6 +316,8 @@ static enum set_fan_status set_fan_level(void) {
             if ((rule->threshold - temp_penalty) < max_temp) {
                 up_delay_counter++;
                 if (up_delay_counter < up_delay_ticks) {
+                    printf("[FAN] Transient temp %dC detected for %s: waiting (%u/%u)\n",
+                           max_temp, rule->name, up_delay_counter, up_delay_ticks);
                     return FAN_LEVEL_NOT_SET; // not ready yet
                 }
                 // OK, promote
@@ -398,6 +403,7 @@ static void maybe_ping_watchdog(void) {
 
 static void get_config(void) {
     FILE *f;
+    int up_delay_ticks_tmp = (int)up_delay_ticks;
 
     f = fopen(CONFIG_PATH, "re");
     if (!f) {
@@ -417,6 +423,7 @@ static void get_config(void) {
         fscanf_int_for_key(f, pos, "low_temp", rules[FAN_LOW].threshold);
         fscanf_int_for_key(f, pos, "watchdog_secs", watchdog_secs);
         fscanf_int_for_key(f, pos, "temp_hysteresis", temp_hysteresis);
+        fscanf_int_for_key(f, pos, "up_delay_ticks", up_delay_ticks_tmp);
         fscanf_str_for_key(f, pos, "max_level", rules[FAN_MAX].tpacpi_level);
         fscanf_str_for_key(f, pos, "med_level", rules[FAN_MED].tpacpi_level);
         fscanf_str_for_key(f, pos, "low_level", rules[FAN_LOW].tpacpi_level);
@@ -432,6 +439,13 @@ static void get_config(void) {
         watchdog_secs > DEFAULT_WATCHDOG_SECS) {
         err("%s: value for the watchdog_secs directive has to be between %d and %d\n",
             CONFIG_PATH, WATCHDOG_GRACE_PERIOD_SECS, DEFAULT_WATCHDOG_SECS);
+        exit(1);
+    }
+
+    /* Commit parsed value and validate up_delay_ticks to a reasonable bound */
+    up_delay_ticks = (unsigned int)up_delay_ticks_tmp;
+    if (up_delay_ticks > 60) {
+        err("%s: value for the up_delay_ticks directive must be between 0 and 60\n", CONFIG_PATH);
         exit(1);
     }
 
