@@ -43,6 +43,11 @@ updated trip temperatures in degrees celsius and/or fan levels. As an example:
     med_level 4
     low_level 1
 
+By default, zcfan will log fan speed changes. To disable this behavior, you can
+add the following line to `/etc/zcfan.conf`:
+
+    log_speed 0
+
 ### Ignoring sensors
 
 If you have a faulty sensor, or a sensor that you otherwise want to ignore, you
