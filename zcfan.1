@@ -47,6 +47,19 @@ low_temp 55
 
 If no trip temperature is reached, the fan will be turned off.
 
+By default,
+.B zcfan
+will log fan speed changes. To disable this behavior, you can
+add the following line to
+.I /etc/zcfan.conf
+:
+
+.RS
+.EX
+log_speed 0
+.EE
+.RE
+
 .SS HYSTERESIS
 
 We will only reduce the fan level again once:

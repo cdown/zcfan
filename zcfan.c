@@ -72,6 +72,7 @@ static volatile sig_atomic_t run = 1;
 static volatile sig_atomic_t pending_sleep = 0;
 static volatile sig_atomic_t pending_resume = 0;
 static int first_tick = 1; /* Stop running if errors are immediate */
+static int log_speed_enabled = 1;
 
 enum resume_state {
     RESUME_NOT_DETECTED,
@@ -311,8 +312,10 @@ static enum set_fan_status set_fan_level(void) {
             if (rule != current_rule) {
                 current_rule = rule;
                 tick_penalty = tick_hysteresis;
-                printf("[FAN] Temperature now %dC, fan set to %s\n", max_temp,
+                if (log_speed_enabled) {
+                    printf("[FAN] Temperature now %dC, fan set to %s\n", max_temp,
                        rule->name);
+                }
                 write_fan_level(rule->tpacpi_level);
                 return FAN_LEVEL_SET;
             }
@@ -389,6 +392,7 @@ static void get_config(void) {
         fscanf_int_for_key(f, pos, "max_temp", rules[FAN_MAX].threshold);
         fscanf_int_for_key(f, pos, "med_temp", rules[FAN_MED].threshold);
         fscanf_int_for_key(f, pos, "low_temp", rules[FAN_LOW].threshold);
+        fscanf_int_for_key(f, pos, "log_speed", log_speed_enabled);
         fscanf_int_for_key(f, pos, "watchdog_secs", watchdog_secs);
         fscanf_int_for_key(f, pos, "temp_hysteresis", temp_hysteresis);
         fscanf_str_for_key(f, pos, "max_level", rules[FAN_MAX].tpacpi_level);
@@ -471,6 +475,7 @@ int main(int argc, char *argv[]) {
     write_watchdog_timeout(watchdog_secs);
     populate_sensor_fds();
     print_thresholds();
+    printf("[CFG] Speed logging %s.\n", log_speed_enabled ? "enabled" : "disabled");
 
     int fan_control_enabled = 1;
 
